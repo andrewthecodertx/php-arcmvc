@@ -13,10 +13,12 @@ class Connection
 
     public function __construct(
         private string $driver,
-        private string $host,
-        private string $database,
-        private string $username,
-        private string $password,
+        private string $host = '',
+        private string $database = '',
+        private string $username = '',
+        private string $password = '',
+        private string $port = '',
+        private string $charset = '',
         private array $options = [],
     ) {
     }
@@ -29,6 +31,8 @@ class Connection
             database: $config['database'] ?? '',
             username: $config['username'] ?? '',
             password: $config['password'] ?? '',
+            port: $config['port'] ?? '',
+            charset: $config['charset'] ?? '',
             options: $config['options'] ?? [],
         );
     }
@@ -80,9 +84,9 @@ class Connection
         return $this->query($sql, $bindings)->rowCount();
     }
 
-    public function statement(string $sql, array $bindings = []): bool
+    public function statement(string $sql, array $bindings = []): int
     {
-        return $this->query($sql, $bindings)->execute($bindings);
+        return $this->query($sql, $bindings)->rowCount();
     }
 
     public function transaction(callable $callback): mixed
@@ -103,7 +107,20 @@ class Connection
         if ($this->driver === 'sqlite') {
             return "sqlite:{$this->database}";
         }
-        return "{$this->driver}:host={$this->host};dbname={$this->database}";
+
+        $dsn = "{$this->driver}:host={$this->host}";
+
+        if ($this->port) {
+            $dsn .= ";port={$this->port}";
+        }
+
+        $dsn .= ";dbname={$this->database}";
+
+        if ($this->charset) {
+            $dsn .= ";charset={$this->charset}";
+        }
+
+        return $dsn;
     }
 
     private function defaultOptions(): array

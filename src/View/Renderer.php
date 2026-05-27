@@ -13,13 +13,18 @@ class Renderer
 
     public function __construct(?string $viewsPath = null)
     {
-        $this->viewsPath = $viewsPath ?? $this->defaultViewsPath();
+        $this->viewsPath = $viewsPath ?? '';
     }
 
     public function setViewsPath(string $path): self
     {
         $this->viewsPath = $path;
         return $this;
+    }
+
+    public function getViewsPath(): string
+    {
+        return $this->viewsPath;
     }
 
     public function setLayout(string $layout): self
@@ -70,10 +75,5 @@ class Renderer
     private function resolvePath(string $template): string
     {
         return rtrim($this->viewsPath, '/') . '/' . str_replace('.', '/', $template) . '.php';
-    }
-
-    private function defaultViewsPath(): string
-    {
-        return getcwd() . '/resources/views';
     }
 }

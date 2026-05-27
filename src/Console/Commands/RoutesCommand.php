@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Arc\Console\Commands;
 
-use Arc\Console\Kernel;
+use Arc\Routing\Router;
 
 class RoutesCommand extends Command
 {
@@ -27,7 +27,7 @@ class RoutesCommand extends Command
             return 1;
         }
 
-        $router = new \Arc\Routing\Router();
+        $router = new Router();
         require $routesFile;
 
         $routes = $router->getRoutes();
@@ -44,7 +44,7 @@ class RoutesCommand extends Command
             foreach ($methodRoutes as $route) {
                 $callback = $route['callback'];
                 if (is_array($callback)) {
-                    $target = $callback[0]::class . '@' . $callback[1];
+                    $target = $callback[0] . '@' . $callback[1];
                 } else {
                     $target = 'Closure';
                 }

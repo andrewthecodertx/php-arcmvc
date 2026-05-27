@@ -11,6 +11,7 @@ use Arc\Http\MiddlewareInterface;
 use Arc\Http\Request;
 use Arc\Http\Response;
 use Arc\Routing\Router;
+use Arc\View\Renderer;
 
 class Application
 {
@@ -23,9 +24,11 @@ class Application
     private array $bindings = [];
     private array $resolved = [];
     private bool $booted = false;
+    private string $basePath;
 
-    public function __construct(?string $configPath = null)
+    public function __construct(?string $configPath = null, ?string $basePath = null)
     {
+        $this->basePath = $basePath ?? $this->detectBasePath();
         $this->config = new Repository();
         $this->router = new Router();
         $this->exceptionHandler = new Handler();
@@ -33,6 +36,8 @@ class Application
         if ($configPath) {
             $this->loadConfig($configPath);
         }
+
+        $this->registerFrameworkServices();
 
         static::$instance = $this;
     }
@@ -49,6 +54,11 @@ class Application
     {
         $this->exceptionHandler = $handler;
         return $this;
+    }
+
+    public function basePath(string $path = ''): string
+    {
+        return $this->basePath . ($path ? '/' . ltrim($path, '/') : '');
     }
 
     public function loadConfig(string $path): self
@@ -139,17 +149,6 @@ class Application
         return $this->middleware;
     }
 
-    public function registerDatabaseConnection(): self
-    {
-        $dbConfig = $this->config->get('database.connections.' . $this->config->get('database.default', 'mysql'));
-
-        if ($dbConfig) {
-            $this->singleton(Connection::class, fn () => Connection::make($dbConfig));
-        }
-
-        return $this;
-    }
-
     public function handle(Request $request): Response
     {
         try {
@@ -195,5 +194,35 @@ class Application
     public function isBooted(): bool
     {
         return $this->booted;
+    }
+
+    private function registerFrameworkServices(): void
+    {
+        $this->singleton(Renderer::class, function (Application $app) {
+            $viewsPath = $app->config()->get('app.views_path', $app->basePath('resources/views'));
+            return new Renderer($viewsPath);
+        });
+    }
+
+    private function registerDatabaseConnection(): void
+    {
+        $dbConfig = $this->config->get(
+            'database.connections.' . $this->config->get('database.default', 'mysql')
+        );
+
+        if ($dbConfig) {
+            $this->singleton(Connection::class, fn () => Connection::make($dbConfig));
+        }
+    }
+
+    private function detectBasePath(): string
+    {
+        $root = getcwd();
+
+        if ($root && is_dir($root . '/app') && is_dir($root . '/public')) {
+            return $root;
+        }
+
+        return dirname(__DIR__);
     }
 }

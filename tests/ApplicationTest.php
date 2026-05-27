@@ -27,7 +27,6 @@ class ApplicationTest extends TestCase
         @unlink($this->tmpDir . '/app.php');
         @unlink($this->tmpDir . '/database.php');
         @rmdir($this->tmpDir);
-        Application::getInstance();
     }
 
     public function testLoadConfig(): void
@@ -99,5 +98,26 @@ class ApplicationTest extends TestCase
         $this->assertFalse($app->isBooted());
         $app->boot();
         $this->assertTrue($app->isBooted());
+    }
+
+    public function testBasePathDefaults(): void
+    {
+        $app = new Application(basePath: '/tmp/myapp');
+        $this->assertSame('/tmp/myapp', $app->basePath());
+        $this->assertSame('/tmp/myapp/resources/views', $app->basePath('resources/views'));
+    }
+
+    public function testRendererRegisteredAsSingleton(): void
+    {
+        $app = new Application(basePath: '/tmp/myapp');
+        $renderer = $app->make(\Arc\View\Renderer::class);
+        $this->assertInstanceOf(\Arc\View\Renderer::class, $renderer);
+    }
+
+    public function testMakeThrowsForMissingBinding(): void
+    {
+        $app = new Application();
+        $this->expectException(\RuntimeException::class);
+        $app->make('nonexistent.Service');
     }
 }

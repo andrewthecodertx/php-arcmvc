@@ -1,8 +1,9 @@
 {
     "name": "andrewthecoder/arc",
-    "description": "A lightweight, modern PHP MVC framework. Small core, batteries included.",
+    "description": "A lightweight, modern PHP MVC framework. Small core, batteries included, built for PHP 8.4+.",
     "type": "library",
     "license": "MIT",
+    "keywords": ["framework", "mvc", "php", "router", "microframework"],
     "require": {
         "php": ">=8.4",
         "ext-pdo": "*"
@@ -29,5 +30,9 @@
             "email": "andrewerwin73@gmail.com"
         }
     ],
-    "minimum-stability": "stable"
+    "minimum-stability": "stable",
+    "support": {
+        "issues": "https://github.com/andrewthecodertx/arc/issues",
+        "source": "https://github.com/andrewthecodertx/arc"
+    }
 }

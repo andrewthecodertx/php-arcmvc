@@ -10,6 +10,7 @@ use Arc\Http\Response;
 class Router
 {
     private array $routes = [];
+    private array $groupStack = [];
 
     public function get(string $path, callable|array $callback): self
     {
@@ -46,40 +47,40 @@ class Router
 
     public function group(array $attributes, callable $callback): void
     {
-        $prefix = $attributes['prefix'] ?? '';
-        $middleware = $attributes['middleware'] ?? [];
-
-        $previousRoutes = $this->routes;
+        $this->groupStack[] = $attributes;
 
         $callback($this);
 
-        foreach ($this->routes as $method => &$methodRoutes) {
-            foreach ($methodRoutes as $i => &$route) {
-                $wasExisting = false;
-                foreach ($previousRoutes[$method] ?? [] as $existing) {
-                    if ($existing['pattern'] === $route['pattern']) {
-                        $wasExisting = true;
-                        break;
-                    }
-                }
-                if (!$wasExisting && $prefix) {
-                    $route['pattern'] = '/' . trim($prefix, '/') . $route['pattern'];
-                }
-                if (!$wasExisting && !empty($middleware)) {
-                    $route['middleware'] = array_merge($route['middleware'] ?? [], (array) $middleware);
-                }
-            }
-        }
+        array_pop($this->groupStack);
     }
 
     private function addRoute(string $method, string $path, callable|array $callback): self
     {
+        $prefix = '';
+        $middleware = [];
+
+        foreach ($this->groupStack as $groupAttrs) {
+            $groupPrefix = trim($groupAttrs['prefix'] ?? '', '/');
+            if ($groupPrefix !== '') {
+                $prefix .= '/' . $groupPrefix;
+            }
+            $middleware = array_merge($middleware, (array) ($groupAttrs['middleware'] ?? []));
+        }
+
+        if ($prefix !== '') {
+            $path = $prefix . '/' . ltrim($path, '/');
+        }
+
+        $path = '/' . ltrim($path, '/');
+        $path = rtrim($path, '/') ?: '/';
+
         $pattern = $this->compilePattern($path);
+
         $this->routes[$method][$pattern] = [
             'pattern' => $pattern,
             'callback' => $callback,
             'path' => $path,
-            'middleware' => [],
+            'middleware' => $middleware,
         ];
         return $this;
     }
@@ -104,18 +105,13 @@ class Router
             if (preg_match("#^{$pattern}$#", $path, $matches)) {
                 $params = array_filter($matches, 'is_string', ARRAY_FILTER_USE_KEY);
 
-                $response = $this->executeCallback($route['callback'], $request, $params);
-
-                if (!$response instanceof Response) {
-                    if (is_array($response)) {
-                        $r = new Response();
-                        $r->json($response);
-                        return $r;
-                    }
-                    $response = new Response((string) $response);
+                if (!empty($route['middleware'])) {
+                    return $this->runRouteMiddleware($route['middleware'], $request, $route, $params);
                 }
 
-                return $response;
+                $response = $this->executeCallback($route['callback'], $request, $params);
+
+                return $this->normalizeResponse($response);
             }
         }
 
@@ -130,6 +126,22 @@ class Router
         return new Response('Not Found', 404);
     }
 
+    private function runRouteMiddleware(array $middleware, Request $request, array $route, array $params): Response
+    {
+        $pipeline = fn (Request $req): Response => $this->normalizeResponse(
+            $this->executeCallback($route['callback'], $req, $params)
+        );
+
+        foreach (array_reverse($middleware) as $mw) {
+            if (is_string($mw)) {
+                $mw = new $mw();
+            }
+            $pipeline = fn (Request $req) => $mw->handle($req, $pipeline);
+        }
+
+        return $pipeline($request);
+    }
+
     private function executeCallback(callable|array $callback, Request $request, array $params): mixed
     {
         if (is_callable($callback)) {
@@ -140,6 +152,21 @@ class Router
         $controller = new $controllerClass();
 
         return $controller->$method($request, ...array_values($params));
+    }
+
+    private function normalizeResponse(mixed $response): Response
+    {
+        if ($response instanceof Response) {
+            return $response;
+        }
+
+        if (is_array($response)) {
+            $r = new Response();
+            $r->json($response);
+            return $r;
+        }
+
+        return new Response((string) $response);
     }
 
     public function getRoutes(): array

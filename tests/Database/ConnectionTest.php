@@ -117,6 +117,18 @@ class ConnectionTest extends TestCase
         $this->assertSame(0, $conn->selectOne('SELECT COUNT(*) as c FROM items')['c']);
     }
 
+    public function testDsnWithPort(): void
+    {
+        $conn = Connection::make([
+            'driver' => 'mysql',
+            'host' => 'db.example.com',
+            'port' => '3307',
+            'database' => 'mydb',
+            'charset' => 'utf8mb4',
+        ]);
+        $this->assertInstanceOf(Connection::class, $conn);
+    }
+
     private function createTestTable(): Connection
     {
         $conn = Connection::make([

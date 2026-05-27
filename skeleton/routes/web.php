@@ -2,7 +2,8 @@
 
 declare(strict_types=1);
 
-use Arc\Routing\Router;
 use App\Controllers\HomeController;
 
-Router::get('/', [HomeController::class, 'index']);
+/** @var \Arc\Routing\Router $router */
+
+$router->get('/', [HomeController::class, 'index']);

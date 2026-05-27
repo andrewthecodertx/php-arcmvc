@@ -20,13 +20,13 @@ A lightweight, modern PHP MVC framework. Small core, batteries included, built f
 ## Install
 
 ```bash
-composer create-project andrewthecoder/arc myapp
+composer require andrewthecoder/arc
 ```
 
-Or add to an existing project:
+Or create a new project from the skeleton:
 
 ```bash
-composer require andrewthecoder/arc
+cp -r vendor/andrewthecoder/arc/skeleton/* .
 ```
 
 ## Project Structure
@@ -82,33 +82,38 @@ declare(strict_types=1);
 
 use Arc\Application;
 use Arc\Http\Middleware\SecurityMiddleware;
-use Arc\Routing\Router;
-use App\Controllers\HomeController;
 
-require __DIR__ . '/../routes/web.php';
-
-$app = new Application(__DIR__ . '/../config');
+$app = new Application(__DIR__ . '/../config', dirname(__DIR__));
 $app->addMiddleware(SecurityMiddleware::class);
+
+$router = $app->router();
+require __DIR__ . '/../routes/web.php';
 
 return $app;
 ```
 
 ### 2. Define Routes
 
-`routes/web.php`:
+`routes/web.php` receives the `$router` from the bootstrap:
 
 ```php
 <?php
 
 declare(strict_types=1);
 
-use Arc\Routing\Router;
 use App\Controllers\HomeController;
 use App\Controllers\UserController;
 
-Router::get('/', [HomeController::class, 'index']);
-Router::get('/users/{id}', [UserController::class, 'show']);
-Router::post('/users', [UserController::class, 'store']);
+/** @var \Arc\Routing\Router $router */
+
+$router->get('/', [HomeController::class, 'index']);
+$router->get('/users/{id}', [UserController::class, 'show']);
+$router->post('/users', [UserController::class, 'store']);
+
+// Route groups with prefix and middleware
+$router->group(['prefix' => '/admin', 'middleware' => App\Middleware\AuthMiddleware::class], function (\Arc\Routing\Router $router) {
+    $router->get('/dashboard', [AdminController::class, 'dashboard']);
+});
 ```
 
 ### 3. Write a Controller
@@ -178,6 +183,28 @@ arc routes
 arc help
 ```
 
+### Custom Commands
+
+```php
+use Arc\Console\Commands\Command;
+
+class MigrateCommand extends Command
+{
+    public function name(): string { return 'migrate'; }
+    public function description(): string { return 'Run database migrations'; }
+    public function run(array $args): int
+    {
+        $this->info('Running migrations...');
+        return 0;
+    }
+}
+
+// In bootstrap/app.php:
+use Arc\Console\Kernel;
+$console = new Kernel();
+$console->register(new MigrateCommand());
+```
+
 ## Database
 
 Arc uses PDO under the hood. Configure in `config/database.php`:
@@ -193,9 +220,11 @@ return [
         'mysql' => [
             'driver' => 'mysql',
             'host' => $_ENV['DB_HOST'] ?? '127.0.0.1',
+            'port' => $_ENV['DB_PORT'] ?? '3306',
             'database' => $_ENV['DB_DATABASE'] ?? 'arc',
             'username' => $_ENV['DB_USERNAME'] ?? 'root',
             'password' => $_ENV['DB_PASSWORD'] ?? '',
+            'charset' => 'utf8mb4',
         ],
         'sqlite' => [
             'driver' => 'sqlite',
@@ -205,7 +234,9 @@ return [
 ];
 ```
 
-### Query Builder
+### Connection
+
+After `$app->boot()`, the Connection is available via the container:
 
 ```php
 use Arc\Database\Connection;
@@ -240,6 +271,7 @@ $conn->transaction(function (Connection $c) {
 use Arc\Database\Model;
 use Arc\Database\Connection;
 
+// Wire the connection (typically in bootstrap)
 Model::setConnection($app->make(Connection::class));
 
 class User extends Model
@@ -271,7 +303,6 @@ $v = Validator::make($_POST, [
 
 if ($v->fails()) {
     $errors = $v->errors();
-    // handle errors
 }
 
 $validated = $v->validated();
@@ -309,10 +340,18 @@ class AuthMiddleware implements MiddlewareInterface
 }
 ```
 
-Register globally in `bootstrap/app.php`:
+Register globally:
 
 ```php
 $app->addMiddleware(AuthMiddleware::class);
+```
+
+Or on a route group:
+
+```php
+$router->group(['middleware' => AuthMiddleware::class], function (\Arc\Routing\Router $r) {
+    $r->get('/dashboard', [DashboardController::class, 'index']);
+});
 ```
 
 ## Views
@@ -322,10 +361,15 @@ Views use plain PHP. The renderer supports dot notation for paths and optional l
 ```php
 // In a controller
 return $this->view('users.profile', ['user' => $user]);
-
-// Render a partial inside a view
-<?= $this->partial('users._avatar', ['user' => $user']) ?>
 ```
+
+Configure the views path in `config/app.php`:
+
+```php
+'views_path' => dirname(__DIR__) . '/resources/views',
+```
+
+Or let Arc default to `{basePath}/resources/views`.
 
 ## Configuration
 

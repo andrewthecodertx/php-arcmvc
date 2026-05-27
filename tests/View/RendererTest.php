@@ -37,7 +37,7 @@ class RendererTest extends TestCase
         file_put_contents($this->tmpDir . '/home/index.php', '<h1>Hello <?= $name ?></h1>');
 
         $renderer = new Renderer($this->tmpDir);
-        $renderer->setLayout('__nonexistent__');
+        $renderer->setLayout('nonexistent_layout');
         $response = $renderer->render('home.index', ['name' => 'Arc']);
 
         $this->assertInstanceOf(Response::class, $response);
@@ -72,5 +72,12 @@ class RendererTest extends TestCase
         $renderer = new Renderer($this->tmpDir);
         $this->expectException(\RuntimeException::class);
         $renderer->render('nonexistent.view');
+    }
+
+    public function testSetViewsPath(): void
+    {
+        $renderer = new Renderer('/old');
+        $renderer->setViewsPath('/new');
+        $this->assertSame('/new', $renderer->getViewsPath());
     }
 }

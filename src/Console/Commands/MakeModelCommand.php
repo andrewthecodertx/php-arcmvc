@@ -54,9 +54,9 @@ class MakeModelCommand extends Command
 
     private function resolvePath(string $name, string $namespace): string
     {
-        $base = getcwd() . '/app';
-        $relative = str_replace('\\', '/', substr($namespace, 4));
-        return $base . $relative . '/' . $name . '.php';
+        $base = getcwd();
+        $relative = str_replace('\\', '/', $namespace);
+        return $base . '/app/' . substr($relative, strpos($relative, '/') + 1) . '/' . $name . '.php';
     }
 
     private function defaultTable(string $name): string

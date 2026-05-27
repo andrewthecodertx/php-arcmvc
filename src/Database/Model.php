@@ -4,14 +4,11 @@ declare(strict_types=1);
 
 namespace Arc\Database;
 
-use Arc\Database\Connection;
-
 class Model
 {
     protected string $table = '';
     protected string $primaryKey = 'id';
     protected array $fillable = [];
-    protected array $casts = [];
     private static ?Connection $connection = null;
 
     public static function setConnection(Connection $connection): void
@@ -22,7 +19,7 @@ class Model
     public static function getConnection(): Connection
     {
         if (static::$connection === null) {
-            throw new \RuntimeException('No database connection set. Call Model::setConnection() first.');
+            throw new \RuntimeException('No database connection set. Call Model::setConnection() or register via Application.');
         }
         return static::$connection;
     }
@@ -30,8 +27,7 @@ class Model
     public static function all(): array
     {
         $instance = new static();
-        $sql = "SELECT * FROM `{$instance->table}`";
-        return static::getConnection()->select($sql);
+        return static::getConnection()->select("SELECT * FROM `{$instance->table}`");
     }
 
     public static function find(int|string $id): ?array
@@ -64,9 +60,10 @@ class Model
         $columns = implode(', ', array_map(fn (string $col) => "`{$col}`", array_keys($data)));
         $placeholders = implode(', ', array_map(fn (string $col) => ":{$col}", array_keys($data)));
 
-        $sql = "INSERT INTO `{$instance->table}` ({$columns}) VALUES ({$placeholders})";
-
-        return static::getConnection()->insert($sql, $data);
+        return static::getConnection()->insert(
+            "INSERT INTO `{$instance->table}` ({$columns}) VALUES ({$placeholders})",
+            $data,
+        );
     }
 
     public static function update(int|string $id, array $data): int
@@ -77,9 +74,10 @@ class Model
         $sets = implode(', ', array_map(fn (string $col) => "`{$col}` = :{$col}", array_keys($data)));
         $data['id'] = $id;
 
-        $sql = "UPDATE `{$instance->table}` SET {$sets} WHERE `{$instance->primaryKey}` = :id";
-
-        return static::getConnection()->update($sql, $data);
+        return static::getConnection()->update(
+            "UPDATE `{$instance->table}` SET {$sets} WHERE `{$instance->primaryKey}` = :id",
+            $data,
+        );
     }
 
     public static function delete(int|string $id): int

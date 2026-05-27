@@ -4,12 +4,14 @@ declare(strict_types=1);
 
 namespace Arc\Support;
 
+use Arc\Application;
 use Arc\Http\Request;
 use Arc\Http\Response;
 
 abstract class Controller
 {
     protected Request $request;
+    private ?Application $app = null;
 
     public function setRequest(Request $request): self
     {
@@ -17,10 +19,19 @@ abstract class Controller
         return $this;
     }
 
+    public function setApp(Application $app): self
+    {
+        $this->app = $app;
+        return $this;
+    }
+
     protected function view(string $template, array $data = []): Response
     {
-        $view = new \Arc\View\Renderer();
-        return $view->render($template, $data);
+        $renderer = $this->app
+            ? $this->app->make(\Arc\View\Renderer::class)
+            : new \Arc\View\Renderer();
+
+        return $renderer->render($template, $data);
     }
 
     protected function json(array $data, int $status = 200): Response
