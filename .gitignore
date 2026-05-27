@@ -1,0 +1,12 @@
+/.idea
+/.vscode
+/vendor
+composer.lock
+composer.phar
+.phpunit.result.cache
+.php-cs-fixer.cache
+coverage
+node_modules
+.env
+.env.*
+!.env.example

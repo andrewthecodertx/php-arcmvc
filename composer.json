@@ -1,0 +1,33 @@
+{
+    "name": "andrewthecoder/arc",
+    "description": "A lightweight, modern PHP MVC framework. Small core, batteries included.",
+    "type": "library",
+    "license": "MIT",
+    "require": {
+        "php": ">=8.4",
+        "ext-pdo": "*"
+    },
+    "require-dev": {
+        "phpunit/phpunit": "^12"
+    },
+    "autoload": {
+        "psr-4": {
+            "Arc\\": "src/"
+        }
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "Tests\\": "tests/"
+        }
+    },
+    "bin": [
+        "bin/arc"
+    ],
+    "authors": [
+        {
+            "name": "Andrew S Erwin",
+            "email": "andrewerwin73@gmail.com"
+        }
+    ],
+    "minimum-stability": "stable"
+}
