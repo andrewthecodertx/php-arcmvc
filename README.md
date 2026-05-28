@@ -7,8 +7,8 @@ A lightweight, modern PHP MVC framework. Small core, batteries included, built f
 ## Principles
 
 - No hidden magic. Request flow is traceable from `public/index.php` to response.
-- Every subsystem is replaceable.
-- Secure defaults everywhere.
+- Decoupled core: uses a dedicated DI container for service management.
+- Secure defaults: including automatic XSS protection in views.
 - Fast startup, low memory by default.
 - One canonical way to do common things.
 - First-party modules for the common website stack, each optional and independently replaceable.
