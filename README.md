@@ -31,10 +31,14 @@ Visit [http://localhost:8080](http://localhost:8080)
 
 ## Learn More
 
-Routing, controllers, views, middleware, database, validation, console commands, configuration — all documented at:
+Routing, controllers, views, middleware, database, validation, console commands, configuration ,  all documented at:
 
 **[andrewthecoder.com/projects/arcmvc](https://andrewthecoder.com/projects/arcmvc)**
 
 ## License
 
-MIT
+MIT, see [LICENSE](LICENSE).
+
+## Contributing
+
+PRs welcome. Please open an issue first for major changes.
