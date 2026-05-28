@@ -9,7 +9,6 @@ use Arc\Http\Response;
 class Renderer
 {
     private string $viewsPath;
-    private string $layout = 'main';
 
     public function __construct(?string $viewsPath = null)
     {
@@ -27,12 +26,6 @@ class Renderer
         return $this->viewsPath;
     }
 
-    public function setLayout(string $layout): self
-    {
-        $this->layout = $layout;
-        return $this;
-    }
-
     public function render(string $template, array $data = []): Response
     {
         $viewFile = $this->resolvePath($template);
@@ -41,13 +34,18 @@ class Renderer
             throw new \RuntimeException("View not found: {$template} (looked in {$viewFile})");
         }
 
-        $content = $this->capture($viewFile, $data);
+        $view = new Template($this);
+        $content = $view->capture($viewFile, $data);
+        $view->setContent($content);
 
-        $layoutFile = $this->resolvePath("layouts/{$this->layout}");
+        if ($view->getLayout() !== null) {
+            $layoutFile = $this->resolvePath('layouts/' . $view->getLayout());
 
-        if (file_exists($layoutFile)) {
-            $data['content'] = $content;
-            $content = $this->capture($layoutFile, $data);
+            if (!file_exists($layoutFile)) {
+                throw new \RuntimeException("Layout not found: {$view->getLayout()} (looked in {$layoutFile})");
+            }
+
+            $content = $view->capture($layoutFile, $data);
         }
 
         return new Response($content, 200, ['Content-Type' => 'text/html']);
@@ -61,19 +59,12 @@ class Renderer
             throw new \RuntimeException("Partial not found: {$template} (looked in {$viewFile})");
         }
 
-        return $this->capture($viewFile, $data);
+        $partial = new Template($this);
+        return $partial->capture($viewFile, $data);
     }
 
-    private function capture(string $path, array $data): string
+    public function resolvePath(string $template): string
     {
-        extract($data, EXTR_SKIP);
-        ob_start();
-        include $path;
-        return ob_get_clean() ?: '';
-    }
-
-    private function resolvePath(string $template): string
-    {
-        return rtrim($this->viewsPath, '/') . '/' . str_replace('.', '/', $template) . '.php';
+        return rtrim($this->viewsPath, '/') . '/' . str_replace('.', '/', $template) . '.phtml';
     }
 }

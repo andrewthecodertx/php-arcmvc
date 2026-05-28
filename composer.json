@@ -18,7 +18,8 @@
     },
     "autoload-dev": {
         "psr-4": {
-            "Tests\\": "tests/"
+            "Tests\\": "tests/",
+            "App\\": "testapp/app/"
         }
     },
     "bin": [

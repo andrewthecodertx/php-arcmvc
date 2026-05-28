@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Arc\Routing;
 
+use Arc\Application;
 use Arc\Http\Request;
 use Arc\Http\Response;
 
@@ -11,6 +12,13 @@ class Router
 {
     private array $routes = [];
     private array $groupStack = [];
+    private ?Application $app = null;
+
+    public function setApp(Application $app): self
+    {
+        $this->app = $app;
+        return $this;
+    }
 
     public function get(string $path, callable|array $callback): self
     {
@@ -150,6 +158,14 @@ class Router
 
         [$controllerClass, $method] = $callback;
         $controller = new $controllerClass();
+
+        if (method_exists($controller, 'setApp')) {
+            $controller->setApp($this->app);
+        }
+
+        if (method_exists($controller, 'setRequest')) {
+            $controller->setRequest($request);
+        }
 
         return $controller->$method($request, ...array_values($params));
     }

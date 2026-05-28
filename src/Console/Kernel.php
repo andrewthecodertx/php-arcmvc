@@ -9,6 +9,7 @@ use Arc\Console\Commands\HelpCommand;
 use Arc\Console\Commands\MakeControllerCommand;
 use Arc\Console\Commands\MakeModelCommand;
 use Arc\Console\Commands\ServeCommand;
+use Arc\Console\Commands\ServeStopCommand;
 use Arc\Console\Commands\RoutesCommand;
 
 class Kernel
@@ -56,6 +57,7 @@ class Kernel
     {
         $this->register(new HelpCommand($this));
         $this->register(new ServeCommand());
+        $this->register(new ServeStopCommand());
         $this->register(new MakeControllerCommand());
         $this->register(new MakeModelCommand());
         $this->register(new RoutesCommand());

@@ -45,9 +45,9 @@ myapp/
 ├── resources/
 │   └── views/
 │       ├── layouts/
-│       │   └── main.php
+│       │   └── main.phtml
 │       └── home/
-│           └── index.php
+│           └── index.phtml
 ├── routes/
 │   └── web.php
 ├── bootstrap/
@@ -140,24 +140,33 @@ class HomeController extends Controller
 
 ### 4. Write a View
 
-`resources/views/home/index.php`:
+Views use `.phtml` files with `$this` bound to a `Template` object:
+
+`resources/views/home/index.phtml`:
 
 ```php
+<?php /** @var \Arc\View\Template $this */ ?>
+<?php $this->extend('main') ?>
+<?php $this->section('title', 'Home') ?>
+
 <h1><?= $title ?></h1>
 <p>Welcome to Arc.</p>
 ```
 
-`resources/views/layouts/main.php`:
+`resources/views/layouts/main.phtml`:
 
 ```php
+<?php /** @var \Arc\View\Template $this */ ?>
 <!DOCTYPE html>
 <html>
-<head><title>Arc</title></head>
+<head><title><?= $this->yield('title', 'Arc') ?></title></head>
 <body>
-<?= $content ?>
+<?= $this->yield('content') ?>
 </body>
 </html>
 ```
+
+Views that don't call `$this->extend()` render as-is, no layout applied. The `@var` annotation helps IDEs and static analysis understand `$this`.
 
 ## Console
 
@@ -356,12 +365,47 @@ $router->group(['middleware' => AuthMiddleware::class], function (\Arc\Routing\R
 
 ## Views
 
-Views use plain PHP. The renderer supports dot notation for paths and optional layout wrapping.
+Views use `.phtml` files with `$this` bound to a `Template` object. The renderer supports dot notation for paths.
 
 ```php
 // In a controller
 return $this->view('users.profile', ['user' => $user]);
 ```
+
+### Template API
+
+Available in every `.phtml` via `$this`:
+
+| Method | Description |
+|--------|-------------|
+| `$this->extend('main')` | Wrap this view in `layouts/main.phtml` |
+| `$this->section('title', 'Home')` | Define a named section for the layout |
+| `$this->yield('title', 'Default')` | Output a section (or default) from the view |
+| `$this->yield('content')` | Output the view's rendered content |
+| `$this->partial('nav.main', [...])` | Render a sub-template |
+
+### Layouts
+
+A layout is just a `.phtml` file in `resources/views/layouts/`. It uses `yield()` to inject sections from the view:
+
+```php
+<?php /** @var \Arc\View\Template $this */ ?>
+<html>
+<head><title><?= $this->yield('title', 'Arc') ?></title></head>
+<body><?= $this->yield('content') ?></body>
+</html>
+```
+
+A view opts in by calling `extend()`:
+
+```php
+<?php /** @var \Arc\View\Template $this */ ?>
+<?php $this->extend('main') ?>
+<?php $this->section('title', 'Profile') ?>
+<h1>Profile</h1>
+```
+
+No `extend()` call means the view renders standalone.
 
 Configure the views path in `config/app.php`:
 

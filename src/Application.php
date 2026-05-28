@@ -31,6 +31,7 @@ class Application
         $this->basePath = $basePath ?? $this->detectBasePath();
         $this->config = new Repository();
         $this->router = new Router();
+        $this->router->setApp($this);
         $this->exceptionHandler = new Handler();
 
         if ($configPath) {
