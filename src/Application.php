@@ -12,6 +12,7 @@ use Arc\Http\Request;
 use Arc\Http\Response;
 use Arc\Routing\Router;
 use Arc\View\Renderer;
+use Arc\Container\Container;
 
 class Application
 {
@@ -19,10 +20,8 @@ class Application
     private Repository $config;
     private Router $router;
     private Handler $exceptionHandler;
+    private Container $container;
     private array $middleware = [];
-    private array $singletons = [];
-    private array $bindings = [];
-    private array $resolved = [];
     private bool $booted = false;
     private string $basePath;
 
@@ -33,6 +32,7 @@ class Application
         $this->router = new Router();
         $this->router->setApp($this);
         $this->exceptionHandler = new Handler();
+        $this->container = new Container();
 
         if ($configPath) {
             $this->loadConfig($configPath);
@@ -92,39 +92,19 @@ class Application
 
     public function bind(string $abstract, callable|string $concrete): self
     {
-        $this->bindings[$abstract] = $concrete;
+        $this->container->bind($abstract, $concrete);
         return $this;
     }
 
     public function singleton(string $abstract, callable|string $concrete): self
     {
-        $this->singletons[$abstract] = $concrete;
+        $this->container->singleton($abstract, $concrete);
         return $this;
     }
 
     public function make(string $abstract): mixed
     {
-        if (isset($this->resolved[$abstract])) {
-            return $this->resolved[$abstract];
-        }
-
-        if (isset($this->singletons[$abstract])) {
-            $concrete = $this->singletons[$abstract];
-            $instance = is_callable($concrete) ? $concrete($this) : new $concrete();
-            $this->resolved[$abstract] = $instance;
-            return $instance;
-        }
-
-        if (isset($this->bindings[$abstract])) {
-            $concrete = $this->bindings[$abstract];
-            return is_callable($concrete) ? $concrete($this) : new $concrete();
-        }
-
-        if (class_exists($abstract)) {
-            return new $abstract();
-        }
-
-        throw new \RuntimeException("No binding found for: {$abstract}");
+        return $this->container->get($abstract);
     }
 
     public function addMiddleware(MiddlewareInterface|string $middleware): self
@@ -178,7 +158,9 @@ class Application
     {
         $request = Request::createFromGlobals();
         $response = $this->handle($request);
-        $response->send();
+        
+        $emitter = $this->container->get(SapiEmitter::class);
+        $emitter->emit($response);
     }
 
     public function boot(): self
@@ -199,7 +181,10 @@ class Application
 
     private function registerFrameworkServices(): void
     {
-        $this->singleton(Renderer::class, function (Application $app) {
+        $this->singleton(SapiEmitter::class, fn () => new SapiEmitter());
+
+        $this->singleton(Renderer::class, function (Container $container) {
+            $app = Application::getInstance();
             $viewsPath = $app->config()->get('app.views_path', $app->basePath('resources/views'));
             return new Renderer($viewsPath);
         });
