@@ -51,6 +51,36 @@ abstract class Controller
     protected function back(): Response
     {
         $referer = $this->request->getHeader('Referer') ?? '/';
+        if (!$this->isSafeRedirect($referer)) {
+            $referer = '/';
+        }
         return $this->redirect($referer);
+    }
+
+    /**
+     * Validate that a redirect URL is same-origin (relative or matching the app host).
+     * Rejects absolute URLs with a host component to prevent open redirect attacks.
+     */
+    protected function isSafeRedirect(string $url): bool
+    {
+        $url = trim($url);
+
+        // Allow relative paths (starting with /)
+        if (str_starts_with($url, '/') && !str_starts_with($url, '//')) {
+            return true;
+        }
+
+        // Reject protocol-relative URLs (//evil.com)
+        if (str_starts_with($url, '//')) {
+            return false;
+        }
+
+        // Parse absolute URLs and reject anything with a host
+        $parsed = parse_url($url);
+        if (isset($parsed['host'])) {
+            return false;
+        }
+
+        return false;
     }
 }
