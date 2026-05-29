@@ -72,4 +72,60 @@ class RequestTest extends TestCase
         $request = new Request(method: 'GET', uri: '/', cookies: ['session' => 'abc123']);
         $this->assertSame('abc123', $request->getCookie('session'));
     }
+
+    // --- File upload helpers ---
+
+    public function testGetFileReturnsFileWhenPresent(): void
+    {
+        $files = [
+            'avatar' => [
+                'name' => 'photo.jpg',
+                'type' => 'image/jpeg',
+                'tmp_name' => '/tmp/php123',
+                'error' => UPLOAD_ERR_OK,
+                'size' => 1024,
+            ],
+        ];
+        $request = new Request(method: 'POST', uri: '/', files: $files);
+        $file = $request->getFile('avatar');
+        $this->assertNotNull($file);
+        $this->assertSame('photo.jpg', $file['name']);
+        $this->assertSame(1024, $file['size']);
+    }
+
+    public function testGetFileReturnsNullForMissingField(): void
+    {
+        $request = new Request(method: 'POST', uri: '/', files: []);
+        $this->assertNull($request->getFile('avatar'));
+    }
+
+    public function testGetFileReturnsNullForUploadError(): void
+    {
+        $files = [
+            'avatar' => [
+                'name' => 'photo.jpg',
+                'type' => 'image/jpeg',
+                'tmp_name' => '',
+                'error' => UPLOAD_ERR_NO_FILE,
+                'size' => 0,
+            ],
+        ];
+        $request = new Request(method: 'POST', uri: '/', files: $files);
+        $this->assertNull($request->getFile('avatar'));
+    }
+
+    public function testGetFileReturnsNullForMultipleUpload(): void
+    {
+        $files = [
+            'photos' => [
+                'name' => ['a.jpg', 'b.jpg'],
+                'type' => ['image/jpeg', 'image/jpeg'],
+                'tmp_name' => ['/tmp/a', '/tmp/b'],
+                'error' => [UPLOAD_ERR_OK, UPLOAD_ERR_OK],
+                'size' => [100, 200],
+            ],
+        ];
+        $request = new Request(method: 'POST', uri: '/', files: $files);
+        $this->assertNull($request->getFile('photos'));
+    }
 }

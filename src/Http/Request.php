@@ -124,6 +124,89 @@ class Request
         return $this->files;
     }
 
+    /**
+     * Get a single uploaded file by name, or null if not present.
+     * Returns null if the file had an upload error.
+     */
+    public function getFile(string $name): ?array
+    {
+        if (!isset($this->files[$name])) {
+            return null;
+        }
+
+        $file = $this->files[$name];
+
+        // Multiple file upload: return null, use getFiles() instead
+        if (is_array($file['name'])) {
+            return null;
+        }
+
+        if ($file['error'] !== UPLOAD_ERR_OK) {
+            return null;
+        }
+
+        return $file;
+    }
+
+    /**
+     * Validate a single uploaded file against constraints.
+     *
+     * @param string $name     Form field name
+     * @param int     $maxBytes Maximum file size in bytes (default 2MB)
+     * @param array   $allowedMimes Allowed MIME types (empty = any)
+     * @return array  Validated file array from $_FILES
+     * @throws \InvalidArgumentException if validation fails
+     */
+    public function validateFile(string $name, int $maxBytes = 2097152, array $allowedMimes = []): array
+    {
+        $file = $this->getFile($name);
+
+        if ($file === null) {
+            throw new \InvalidArgumentException("No valid upload for field '{$name}'");
+        }
+
+        if ($file['size'] > $maxBytes) {
+            throw new \InvalidArgumentException(
+                "File '{$name}' exceeds maximum size of {$maxBytes} bytes (got {$file['size']})"
+            );
+        }
+
+        // Verify the file is an actual uploaded file (not a path traversal attack)
+        if (!is_uploaded_file($file['tmp_name'])) {
+            throw new \InvalidArgumentException("File '{$name}' is not a valid upload");
+        }
+
+        // MIME type validation
+        if (!empty($allowedMimes)) {
+            $finfo = new \finfo(FILEINFO_MIME_TYPE);
+            $detectedMime = $finfo->file($file['tmp_name']);
+
+            if (!in_array($detectedMime, $allowedMimes, true)) {
+                $allowed = implode(', ', $allowedMimes);
+                throw new \InvalidArgumentException(
+                    "File '{$name}' has unsupported MIME type '{$detectedMime}' (allowed: {$allowed})"
+                );
+            }
+        }
+
+        // Sanitize filename: strip path components and null bytes
+        $file['safe_name'] = $this->sanitizeFileName($file['name']);
+
+        return $file;
+    }
+
+    /**
+     * Sanitize a filename by stripping directory paths and null bytes.
+     */
+    private function sanitizeFileName(string $name): string
+    {
+        // Strip directory components
+        $name = basename($name);
+        // Remove null bytes and other dangerous characters
+        $name = str_replace(["\0", '\\', '/', '..'], '', $name);
+        return $name;
+    }
+
     public function getServer(?string $key = null): mixed
     {
         if ($key === null) {
