@@ -96,11 +96,27 @@ class Router
         return $this;
     }
 
+    /**
+     * Compile a route path with {param} placeholders into a regex pattern.
+     * e.g., /users/{id} becomes /users/(?P<id>[^/]+)
+     */
     private function compilePattern(string $path): string
     {
         return preg_replace('/\{(\w+)\}/', '(?P<$1>[^/]+)', $path);
     }
 
+    /**
+     * Dispatch a request through the router.
+     *
+     * 1. Normalize HEAD requests to GET (same response, no body)
+     * 2. Match request path against registered route patterns
+     * 3. If matched with middleware, run the middleware pipeline
+     * 4. If matched without middleware, execute the callback directly
+     * 5. If no match, check if the path exists for other methods (405)
+     * 6. Otherwise throw RouteNotFoundException (404)
+     *
+     * @throws RouteNotFoundException if no matching route is found
+     */
     public function dispatch(Request $request): Response
     {
         $method = $request->getMethod();

@@ -4,6 +4,13 @@ declare(strict_types=1);
 
 namespace Arc\Http;
 
+/**
+ * Represents an HTTP request.
+ *
+ * Wraps all request data: method, URI, headers, query params, POST data,
+ * JSON body, cookies, files, and server variables. Also supports arbitrary
+ * attributes for middleware to attach request-scoped data.
+ */
 class Request
 {
     private array $attributes = [];
@@ -21,6 +28,9 @@ class Request
     ) {
     }
 
+    /**
+     * Create a Request from PHP superglobals ($_SERVER, $_GET, $_POST, etc.).
+     */
     public static function createFromGlobals(): self
     {
         $method = $_SERVER['REQUEST_METHOD'] ?? 'GET';
@@ -55,26 +65,34 @@ class Request
         );
     }
 
+    /** Get the HTTP method (GET, POST, etc.). */
     public function getMethod(): string
     {
         return $this->method;
     }
 
+    /** Get the full request URI including query string. */
     public function getUri(): string
     {
         return $this->uri;
     }
 
+    /** Get the path component of the URI (no query string). */
     public function getPath(): string
     {
         return parse_url($this->uri, PHP_URL_PATH) ?? '/';
     }
 
+    /** Get all headers as an associative array. */
     public function getHeaders(): array
     {
         return $this->headers;
     }
 
+    /**
+     * Get a single header value by name (case-insensitive).
+     * Returns null if the header is not present.
+     */
     public function getHeader(string $name): ?string
     {
         foreach ($this->headers as $key => $value) {
@@ -85,6 +103,10 @@ class Request
         return null;
     }
 
+    /**
+     * Get query string parameters.
+     * With a key, returns the value or null. Without, returns all params.
+     */
     public function getQuery(?string $key = null): mixed
     {
         if ($key === null) {
@@ -93,6 +115,10 @@ class Request
         return $this->query[$key] ?? null;
     }
 
+    /**
+     * Get POST/form data.
+     * With a key, returns the value or null. Without, returns all data.
+     */
     public function getPost(?string $key = null): mixed
     {
         if ($key === null) {
@@ -101,6 +127,10 @@ class Request
         return $this->post[$key] ?? null;
     }
 
+    /**
+     * Get parsed JSON body data.
+     * With a key, returns the value or null. Without, returns all data.
+     */
     public function getBody(?string $key = null): mixed
     {
         if ($key === null) {
@@ -109,16 +139,19 @@ class Request
         return $this->body[$key] ?? null;
     }
 
+    /** Get all cookies. */
     public function getCookies(): array
     {
         return $this->cookies;
     }
 
+    /** Get a single cookie value by name. Returns null if not set. */
     public function getCookie(string $name): ?string
     {
         return $this->cookies[$name] ?? null;
     }
 
+    /** Get all uploaded files (raw $_FILES array). */
     public function getFiles(): array
     {
         return $this->files;
@@ -151,10 +184,10 @@ class Request
     /**
      * Validate a single uploaded file against constraints.
      *
-     * @param string $name     Form field name
-     * @param int     $maxBytes Maximum file size in bytes (default 2MB)
+     * @param string $name          Form field name
+     * @param int     $maxBytes     Maximum file size in bytes (default 2MB)
      * @param array   $allowedMimes Allowed MIME types (empty = any)
-     * @return array  Validated file array from $_FILES
+     * @return array  Validated file array from $_FILES with added 'safe_name' key
      * @throws \InvalidArgumentException if validation fails
      */
     public function validateFile(string $name, int $maxBytes = 2097152, array $allowedMimes = []): array
@@ -176,7 +209,7 @@ class Request
             throw new \InvalidArgumentException("File '{$name}' is not a valid upload");
         }
 
-        // MIME type validation
+        // MIME type validation via fileinfo
         if (!empty($allowedMimes)) {
             $finfo = new \finfo(FILEINFO_MIME_TYPE);
             $detectedMime = $finfo->file($file['tmp_name']);
@@ -189,24 +222,20 @@ class Request
             }
         }
 
-        // Sanitize filename: strip path components and null bytes
         $file['safe_name'] = $this->sanitizeFileName($file['name']);
 
         return $file;
     }
 
-    /**
-     * Sanitize a filename by stripping directory paths and null bytes.
-     */
+    /** Sanitize a filename by stripping directory paths and null bytes. */
     private function sanitizeFileName(string $name): string
     {
-        // Strip directory components
         $name = basename($name);
-        // Remove null bytes and other dangerous characters
         $name = str_replace(["\0", '\\', '/', '..'], '', $name);
         return $name;
     }
 
+    /** Get server variables. With a key, returns the value or null. */
     public function getServer(?string $key = null): mixed
     {
         if ($key === null) {
@@ -215,39 +244,46 @@ class Request
         return $this->server[$key] ?? null;
     }
 
+    /** Check if the request method matches (case-insensitive). */
     public function isMethod(string $method): bool
     {
         return strtoupper($this->method) === strtoupper($method);
     }
 
+    /** Check if the request Content-Type is application/json. */
     public function isJson(): bool
     {
         $contentType = $this->getHeader('Content-Type') ?? '';
         return str_contains($contentType, 'application/json');
     }
 
+    /** Check if the client expects a JSON response (Accept header). */
     public function wantsJson(): bool
     {
         $accept = $this->getHeader('Accept') ?? '';
         return str_contains($accept, 'application/json');
     }
 
+    /** Set a request attribute (for middleware to pass data down the pipeline). */
     public function setAttribute(string $key, mixed $value): self
     {
         $this->attributes[$key] = $value;
         return $this;
     }
 
+    /** Get a request attribute set by middleware. */
     public function getAttribute(string $key, mixed $default = null): mixed
     {
         return $this->attributes[$key] ?? $default;
     }
 
+    /** Get all request attributes. */
     public function getAttributes(): array
     {
         return $this->attributes;
     }
 
+    /** Get the client IP address from REMOTE_ADDR. */
     public function ip(): ?string
     {
         return $this->server['REMOTE_ADDR'] ?? null;

@@ -4,6 +4,12 @@ declare(strict_types=1);
 
 namespace Arc\Http;
 
+/**
+ * Represents an HTTP response.
+ *
+ * Provides a fluent interface for setting status codes, headers, and content.
+ * Redirect URLs are validated by default to prevent open redirect attacks.
+ */
 class Response
 {
     private int $statusCode = 200;
@@ -50,6 +56,13 @@ class Response
         return $this->content;
     }
 
+    /**
+     * Set the response as JSON.
+     *
+     * @param array $data       Data to encode as JSON
+     * @param int   $statusCode HTTP status code (default 200)
+     * @throws \JsonException if encoding fails
+     */
     public function json(array $data, int $statusCode = 200): self
     {
         $this->setHeader('Content-Type', 'application/json');
@@ -59,9 +72,15 @@ class Response
     }
 
     /**
-     * Redirect to a URL. External URLs are rejected by default to prevent
-     * open redirect attacks. Set $allowExternal to true only when the
-     * redirect target is known-safe (e.g., developer-defined).
+     * Set the response as a redirect.
+     *
+     * By default, external URLs are rejected and replaced with '/' to prevent
+     * open redirect attacks. Set $allowExternal to true for known-safe
+     * external redirects (e.g., OAuth callbacks).
+     *
+     * @param string $url            Redirect target URL
+     * @param int    $statusCode     HTTP status code (default 302)
+     * @param bool   $allowExternal  Allow external URL targets (default false)
      */
     public function redirect(string $url, int $statusCode = 302, bool $allowExternal = false): self
     {

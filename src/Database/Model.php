@@ -4,6 +4,16 @@ declare(strict_types=1);
 
 namespace Arc\Database;
 
+/**
+ * Base model class for Active Record-style database operations.
+ *
+ * Subclasses set $table, $primaryKey, and $fillable to configure behavior.
+ * All methods that interpolate identifiers (table/column names) validate
+ * against `/^[a-zA-Z_][a-zA-Z0-9_]*$/` to prevent SQL injection.
+ *
+ * @throws \InvalidArgumentException if an identifier contains invalid characters
+ * @throws \RuntimeException if no database connection is configured
+ */
 class Model
 {
     protected string $table = '';
@@ -22,6 +32,7 @@ class Model
 
     /**
      * Assert that an identifier is valid, throwing if it is not.
+     * @throws \InvalidArgumentException
      */
     private static function assertValidIdentifier(string $identifier, string $context): void
     {
@@ -32,11 +43,16 @@ class Model
         }
     }
 
+    /** Set the database connection for all model operations. */
     public static function setConnection(Connection $connection): void
     {
         static::$connection = $connection;
     }
 
+    /**
+     * Get the configured database connection.
+     * @throws \RuntimeException if no connection has been set
+     */
     public static function getConnection(): Connection
     {
         if (static::$connection === null) {
@@ -45,6 +61,10 @@ class Model
         return static::$connection;
     }
 
+    /**
+     * Retrieve rows with pagination.
+     * Default limit is 1000 to prevent memory exhaustion on large tables.
+     */
     public static function all(int $limit = 1000, int $offset = 0): array
     {
         $instance = new static();
@@ -55,6 +75,10 @@ class Model
         );
     }
 
+    /**
+     * Find a single row by primary key.
+     * @return array|null The row data, or null if not found
+     */
     public static function find(int|string $id): ?array
     {
         $instance = new static();
@@ -66,6 +90,10 @@ class Model
         );
     }
 
+    /**
+     * Find rows matching a column value.
+     * @throws \InvalidArgumentException if $column contains invalid characters
+     */
     public static function where(string $column, mixed $value): array
     {
         self::assertValidIdentifier($column, 'column name');
@@ -77,6 +105,11 @@ class Model
         );
     }
 
+    /**
+     * Insert a new row. Only fillable attributes are stored.
+     * @throws \InvalidArgumentException if column names contain invalid characters
+     * @throws \RuntimeException if no fillable attributes are provided
+     */
     public static function create(array $data): int
     {
         $instance = new static();
@@ -100,6 +133,10 @@ class Model
         );
     }
 
+    /**
+     * Update rows by primary key. Only fillable attributes are stored.
+     * @throws \InvalidArgumentException if column names contain invalid characters
+     */
     public static function update(int|string $id, array $data): int
     {
         $instance = new static();
@@ -120,6 +157,10 @@ class Model
         );
     }
 
+    /**
+     * Delete a row by primary key.
+     * @return int Number of affected rows
+     */
     public static function delete(int|string $id): int
     {
         $instance = new static();
@@ -131,6 +172,11 @@ class Model
         );
     }
 
+    /**
+     * Count rows, optionally for a specific column.
+     * @param string $column Column to count (default '*' for all rows)
+     * @throws \InvalidArgumentException if $column is not '*' and contains invalid characters
+     */
     public static function count(string $column = '*'): int
     {
         $instance = new static();
@@ -144,11 +190,19 @@ class Model
         return (int) ($result['count'] ?? 0);
     }
 
+    /**
+     * Execute a raw SQL query with parameter bindings.
+     * Use with caution: no identifier validation is performed.
+     */
     public static function query(string $sql, array $bindings = []): array
     {
         return static::getConnection()->select($sql, $bindings);
     }
 
+    /**
+     * Filter $data to only include keys listed in $fillable.
+     * If $fillable is empty, all data is passed through.
+     */
     protected function filterFillable(array $data): array
     {
         if (empty($this->fillable)) {

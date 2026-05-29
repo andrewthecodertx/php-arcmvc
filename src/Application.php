@@ -139,6 +139,10 @@ class Application
         return $this->middleware;
     }
 
+    /**
+     * Handle an incoming request through middleware and routing.
+     * Catches all Throwables and passes them to the exception handler.
+     */
     public function handle(Request $request): Response
     {
         try {
@@ -152,6 +156,14 @@ class Application
         }
     }
 
+    /**
+     * Run the middleware pipeline (onion model).
+     *
+     * Middleware is applied in registration order, but the pipeline is built
+     * in reverse so that the first registered middleware runs first on the way
+     * in AND last on the way out. Each middleware receives the request and a
+     * $next callable that invokes the next layer (or the router at the core).
+     */
     private function runMiddleware(Request $request, array $middleware): Response
     {
         $pipeline = fn (Request $req): Response => $this->router->dispatch($req);
