@@ -41,10 +41,10 @@ abstract class Controller
         return $response;
     }
 
-    protected function redirect(string $url, int $status = 302): Response
+    protected function redirect(string $url, int $status = 302, bool $allowExternal = false): Response
     {
         $response = new Response();
-        $response->redirect($url, $status);
+        $response->redirect($url, $status, $allowExternal);
         return $response;
     }
 

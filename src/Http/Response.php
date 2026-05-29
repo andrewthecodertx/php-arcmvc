@@ -58,11 +58,37 @@ class Response
         return $this;
     }
 
-    public function redirect(string $url, int $statusCode = 302): self
+    /**
+     * Redirect to a URL. External URLs are rejected by default to prevent
+     * open redirect attacks. Set $allowExternal to true only when the
+     * redirect target is known-safe (e.g., developer-defined).
+     */
+    public function redirect(string $url, int $statusCode = 302, bool $allowExternal = false): self
     {
+        if (!$allowExternal && !$this->isRelativeUrl($url)) {
+            $url = '/';
+        }
+
         $this->setHeader('Location', $url);
         $this->statusCode = $statusCode;
         $this->content = '';
         return $this;
+    }
+
+    /**
+     * Determine if a URL is a safe relative path (not external).
+     */
+    private function isRelativeUrl(string $url): bool
+    {
+        $url = trim($url);
+
+        // Relative paths starting with / (but not protocol-relative //)
+        if (str_starts_with($url, '/') && !str_starts_with($url, '//')) {
+            return true;
+        }
+
+        // Anything with a scheme or host is external
+        $parsed = parse_url($url);
+        return !isset($parsed['host']) && !isset($parsed['scheme']);
     }
 }
