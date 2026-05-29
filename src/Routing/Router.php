@@ -131,7 +131,7 @@ class Router
             }
         }
 
-        return new Response('Not Found', 404);
+        throw new RouteNotFoundException($path);
     }
 
     private function runRouteMiddleware(array $middleware, Request $request, array $route, array $params): Response

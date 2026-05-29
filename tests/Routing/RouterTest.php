@@ -8,6 +8,7 @@ use PHPUnit\Framework\TestCase;
 use Arc\Routing\Router;
 use Arc\Http\Request;
 use Arc\Http\Response;
+use Arc\Routing\RouteNotFoundException;
 
 class RouterTest extends TestCase
 {
@@ -54,10 +55,10 @@ class RouterTest extends TestCase
         $this->assertSame('Deleted 5', $response->getContent());
     }
 
-    public function testNotFoundReturns404(): void
+    public function testNotFoundThrowsRouteNotFoundException(): void
     {
-        $response = $this->router->dispatch(new Request(method: 'GET', uri: '/nonexistent'));
-        $this->assertSame(404, $response->getStatusCode());
+        $this->expectException(RouteNotFoundException::class);
+        $this->router->dispatch(new Request(method: 'GET', uri: '/nonexistent'));
     }
 
     public function testMethodNotAllowedReturns405(): void

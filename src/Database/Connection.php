@@ -65,7 +65,7 @@ class Connection
     public function selectOne(string $sql, array $bindings = []): ?array
     {
         $result = $this->query($sql, $bindings)->fetch(PDO::FETCH_ASSOC);
-        return $result ?: null;
+        return $result !== false ? $result : null;
     }
 
     public function insert(string $sql, array $bindings = []): int
