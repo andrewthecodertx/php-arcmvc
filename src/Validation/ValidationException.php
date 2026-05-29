@@ -12,12 +12,26 @@ class ValidationException extends Exception
         private array $errors,
         int $code = 422,
     ) {
-        $message = 'Validation failed: ' . json_encode($errors, JSON_THROW_ON_ERROR);
+        $message = 'Validation failed: ' . $this->formatErrors($errors);
         parent::__construct($message, $code);
     }
 
     public function errors(): array
     {
         return $this->errors;
+    }
+
+    /**
+     * Format errors as a human-readable string instead of raw JSON.
+     */
+    private function formatErrors(array $errors): string
+    {
+        $messages = [];
+        foreach ($errors as $field => $fieldErrors) {
+            foreach ($fieldErrors as $error) {
+                $messages[] = "{$field}: {$error}";
+            }
+        }
+        return implode('; ', $messages);
     }
 }

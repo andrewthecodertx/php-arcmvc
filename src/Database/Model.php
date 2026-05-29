@@ -45,11 +45,14 @@ class Model
         return static::$connection;
     }
 
-    public static function all(): array
+    public static function all(int $limit = 1000, int $offset = 0): array
     {
         $instance = new static();
         self::assertValidIdentifier($instance->table, 'table name');
-        return static::getConnection()->select("SELECT * FROM `{$instance->table}`");
+        return static::getConnection()->select(
+            "SELECT * FROM `{$instance->table}` LIMIT :limit OFFSET :offset",
+            ['limit' => $limit, 'offset' => $offset],
+        );
     }
 
     public static function find(int|string $id): ?array
