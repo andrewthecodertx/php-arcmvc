@@ -11,6 +11,27 @@ class Model
     protected array $fillable = [];
     private static ?Connection $connection = null;
 
+    /**
+     * Validate that an identifier (table name, column name) contains only
+     * safe characters to prevent SQL injection via string interpolation.
+     */
+    private static function isValidIdentifier(string $identifier): bool
+    {
+        return preg_match('/^[a-zA-Z_][a-zA-Z0-9_]*$/', $identifier) === 1;
+    }
+
+    /**
+     * Assert that an identifier is valid, throwing if it is not.
+     */
+    private static function assertValidIdentifier(string $identifier, string $context): void
+    {
+        if (!self::isValidIdentifier($identifier)) {
+            throw new \InvalidArgumentException(
+                "Invalid SQL identifier in {$context}: {$identifier}"
+            );
+        }
+    }
+
     public static function setConnection(Connection $connection): void
     {
         static::$connection = $connection;
@@ -27,12 +48,15 @@ class Model
     public static function all(): array
     {
         $instance = new static();
+        self::assertValidIdentifier($instance->table, 'table name');
         return static::getConnection()->select("SELECT * FROM `{$instance->table}`");
     }
 
     public static function find(int|string $id): ?array
     {
         $instance = new static();
+        self::assertValidIdentifier($instance->table, 'table name');
+        self::assertValidIdentifier($instance->primaryKey, 'primary key');
         return static::getConnection()->selectOne(
             "SELECT * FROM `{$instance->table}` WHERE `{$instance->primaryKey}` = :id LIMIT 1",
             ['id' => $id],
@@ -41,7 +65,9 @@ class Model
 
     public static function where(string $column, mixed $value): array
     {
+        self::assertValidIdentifier($column, 'column name');
         $instance = new static();
+        self::assertValidIdentifier($instance->table, 'table name');
         return static::getConnection()->select(
             "SELECT * FROM `{$instance->table}` WHERE `{$column}` = :value",
             ['value' => $value],
@@ -51,10 +77,15 @@ class Model
     public static function create(array $data): int
     {
         $instance = new static();
+        self::assertValidIdentifier($instance->table, 'table name');
         $data = $instance->filterFillable($data);
 
         if (empty($data)) {
             throw new \RuntimeException('No fillable attributes provided.');
+        }
+
+        foreach (array_keys($data) as $col) {
+            self::assertValidIdentifier($col, 'column name');
         }
 
         $columns = implode(', ', array_map(fn (string $col) => "`{$col}`", array_keys($data)));
@@ -69,7 +100,13 @@ class Model
     public static function update(int|string $id, array $data): int
     {
         $instance = new static();
+        self::assertValidIdentifier($instance->table, 'table name');
+        self::assertValidIdentifier($instance->primaryKey, 'primary key');
         $data = $instance->filterFillable($data);
+
+        foreach (array_keys($data) as $col) {
+            self::assertValidIdentifier($col, 'column name');
+        }
 
         $sets = implode(', ', array_map(fn (string $col) => "`{$col}` = :{$col}", array_keys($data)));
         $data['id'] = $id;
@@ -83,6 +120,8 @@ class Model
     public static function delete(int|string $id): int
     {
         $instance = new static();
+        self::assertValidIdentifier($instance->table, 'table name');
+        self::assertValidIdentifier($instance->primaryKey, 'primary key');
         return static::getConnection()->delete(
             "DELETE FROM `{$instance->table}` WHERE `{$instance->primaryKey}` = :id",
             ['id' => $id],
@@ -92,6 +131,10 @@ class Model
     public static function count(string $column = '*'): int
     {
         $instance = new static();
+        self::assertValidIdentifier($instance->table, 'table name');
+        if ($column !== '*') {
+            self::assertValidIdentifier($column, 'column name');
+        }
         $result = static::getConnection()->selectOne(
             "SELECT COUNT({$column}) as count FROM `{$instance->table}`",
         );
