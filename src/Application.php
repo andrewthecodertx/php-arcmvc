@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Arc;
 
+use Arc\Http\SapiEmitter;
 use Arc\Config\Repository;
 use Arc\Database\Connection;
 use Arc\Exceptions\Handler;
@@ -49,6 +50,14 @@ class Application
             static::$instance = new self();
         }
         return static::$instance;
+    }
+
+    /**
+     * Reset the singleton instance. For use in tests to ensure clean state.
+     */
+    public static function resetInstance(): void
+    {
+        static::$instance = null;
     }
 
     public function setExceptionHandler(Handler $handler): self
@@ -184,8 +193,7 @@ class Application
         $this->singleton(SapiEmitter::class, fn () => new SapiEmitter());
 
         $this->singleton(Renderer::class, function (Container $container) {
-            $app = Application::getInstance();
-            $viewsPath = $app->config()->get('app.views_path', $app->basePath('resources/views'));
+            $viewsPath = $this->config()->get('app.views_path', $this->basePath('resources/views'));
             return new Renderer($viewsPath);
         });
     }
