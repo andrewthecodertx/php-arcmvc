@@ -176,7 +176,9 @@ class NewCommand extends Command
             $dstPath = $dst . '/' . $file;
 
             if (is_dir($srcPath)) {
-                mkdir($dstPath, 0755, true);
+                if (!is_dir($dstPath)) {
+                    mkdir($dstPath, 0755, true);
+                }
                 $this->recursiveCopy($srcPath, $dstPath);
             } else {
                 copy($srcPath, $dstPath);
@@ -229,9 +231,8 @@ ENV;
             return false;
         }
 
-        $process = new Process($composer . ' install --no-interaction', $projectPath);
+        $process = new Process([$composer, 'install', '--no-interaction'], $projectPath);
         $process->setTimeout(300);
-        $process->setTty(true); // For interactive installs
         $process->run();
 
         if (!$process->isSuccessful()) {
