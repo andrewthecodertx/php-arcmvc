@@ -143,4 +143,37 @@ class TemplateTest extends TestCase
         $this->assertStringContainsString('<nav><a href="/">Home</a></nav>', $response->getContent());
         $this->assertStringNotContainsString('&lt;a', $response->getContent());
     }
+
+    public function testCsrfFieldGeneratesHiddenInput(): void
+    {
+        $template = new Template($this->renderer);
+        // Manually call capture to populate data
+        $tmpFile = $this->tmpDir . '/home/_csrf.phtml';
+        file_put_contents($tmpFile, 'csrf test');
+        $template->capture($tmpFile, ['_csrf_token' => 'abc123def456']);
+        $html = $template->csrfField();
+        $this->assertStringContainsString('<input type="hidden"', $html);
+        $this->assertStringContainsString('name="_token"', $html);
+        $this->assertStringContainsString('value="abc123def456"', $html);
+    }
+
+    public function testCsrfFieldWithCustomFieldName(): void
+    {
+        $template = new Template($this->renderer);
+        $tmpFile = $this->tmpDir . '/home/_csrf2.phtml';
+        file_put_contents($tmpFile, 'csrf test');
+        $template->capture($tmpFile, ['_csrf_token' => 'tok']);
+        $html = $template->csrfField('custom_csrf');
+        $this->assertStringContainsString('name="custom_csrf"', $html);
+    }
+
+    public function testCsrfFieldEscapesValue(): void
+    {
+        $template = new Template($this->renderer);
+        $tmpFile = $this->tmpDir . '/home/_csrf3.phtml';
+        file_put_contents($tmpFile, 'csrf test');
+        $template->capture($tmpFile, ['_csrf_token' => '<script>alert(1)</script>']);
+        $html = $template->csrfField();
+        $this->assertStringContainsString('value="&lt;script&gt;alert(1)&lt;/script&gt;"', $html);
+    }
 }

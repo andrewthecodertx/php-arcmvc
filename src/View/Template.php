@@ -29,6 +29,9 @@ class Template
     /** Layout to extend, set by the view via extend() */
     private ?string $layout = null;
 
+    /** View data (passed from renderer, available for helpers like csrf) */
+    private array $data = [];
+
     public function __construct(Renderer $renderer)
     {
         $this->renderer = $renderer;
@@ -93,10 +96,24 @@ class Template
      */
     public function capture(string $path, array $data): string
     {
+        $this->data = $data;
         extract($data, EXTR_SKIP);
         ob_start();
         include $path;
         return ob_get_clean() ?: '';
+    }
+
+    /**
+     * Render a CSRF token hidden input field for forms.
+     * Requires '_csrf_token' to be present in the view data
+     * (set by CsrfMiddleware via Request attribute).
+     */
+    public function csrfField(string $fieldName = '_token'): string
+    {
+        $token = $this->data['_csrf_token'] ?? '';
+        $escaped = htmlspecialchars($token, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+        $name = htmlspecialchars($fieldName, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+        return '<input type="hidden" name="' . $name . '" value="' . $escaped . '">';
     }
 }
 
