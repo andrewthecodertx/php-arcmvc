@@ -6,9 +6,10 @@ namespace Tests\Routing;
 
 use PHPUnit\Framework\TestCase;
 use Arc\Routing\Router;
+use Arc\Routing\RouteNotFoundException;
 use Arc\Http\Request;
 use Arc\Http\Response;
-use Arc\Routing\RouteNotFoundException;
+use Arc\Container\Container;
 
 class RouterTest extends TestCase
 {
@@ -156,6 +157,35 @@ class RouterTest extends TestCase
         $response = $this->router->dispatch(new Request(method: 'HEAD', uri: '/resource'));
         $this->assertSame(200, $response->getStatusCode());
     }
+
+    public function testContainerResolvesController(): void
+    {
+        $container = new Container();
+        $container->bind(DependentController::class, function (Container $c) {
+            return new DependentController($c->get(DummyService::class));
+        });
+        $container->singleton(DummyService::class, fn () => new DummyService('injected'));
+
+        $this->router->setContainer($container);
+        $this->router->get('/dep', [DependentController::class, 'index']);
+
+        $response = $this->router->dispatch(new Request(method: 'GET', uri: '/dep'));
+        $this->assertSame('injected', $response->getContent());
+    }
+
+    public function testContainerResolvesRouteMiddleware(): void
+    {
+        $container = new Container();
+        $container->singleton(InjectableMiddleware::class, fn () => new InjectableMiddleware('container-mw'));
+
+        $this->router->setContainer($container);
+        $this->router->group(['middleware' => InjectableMiddleware::class], function (Router $r) {
+            $r->get('/mw-test', fn (Request $req) => new Response('ok'));
+        });
+
+        $response = $this->router->dispatch(new Request(method: 'GET', uri: '/mw-test'));
+        $this->assertSame('container-mw', $response->getContent());
+    }
 }
 
 class TestController
@@ -176,5 +206,30 @@ class TestMiddleware implements \Arc\Http\MiddlewareInterface
     public function handle(Request $request, callable $next): Response
     {
         return new Response('middleware applied');
+    }
+}
+
+class DummyService
+{
+    public function __construct(public string $value) {}
+}
+
+class DependentController
+{
+    public function __construct(private DummyService $service) {}
+
+    public function index(Request $request): Response
+    {
+        return new Response($this->service->value);
+    }
+}
+
+class InjectableMiddleware implements \Arc\Http\MiddlewareInterface
+{
+    public function __construct(private string $label) {}
+
+    public function handle(Request $request, callable $next): Response
+    {
+        return new Response($this->label);
     }
 }

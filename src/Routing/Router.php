@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Arc\Routing;
 
-use Arc\Application;
+use Arc\Container\Container;
 use Arc\Http\Request;
 use Arc\Http\Response;
 
@@ -12,11 +12,14 @@ class Router
 {
     private array $routes = [];
     private array $groupStack = [];
-    private ?Application $app = null;
+    private ?Container $container = null;
 
-    public function setApp(Application $app): self
+    /**
+     * Set the DI container for controller resolution.
+     */
+    public function setContainer(Container $container): self
     {
-        $this->app = $app;
+        $this->container = $container;
         return $this;
     }
 
@@ -142,7 +145,7 @@ class Router
 
         foreach (array_reverse($middleware) as $mw) {
             if (is_string($mw)) {
-                $mw = new $mw();
+                $mw = $this->container ? $this->container->get($mw) : new $mw();
             }
             $pipeline = fn (Request $req) => $mw->handle($req, $pipeline);
         }
@@ -157,10 +160,12 @@ class Router
         }
 
         [$controllerClass, $method] = $callback;
-        $controller = new $controllerClass();
 
-        if (method_exists($controller, 'setApp')) {
-            $controller->setApp($this->app);
+        // Resolve controller through the container when available (supports DI)
+        if ($this->container !== null && $this->container->has($controllerClass)) {
+            $controller = $this->container->get($controllerClass);
+        } else {
+            $controller = new $controllerClass();
         }
 
         if (method_exists($controller, 'setRequest')) {
