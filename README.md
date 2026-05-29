@@ -20,9 +20,17 @@ A lightweight, modern PHP MVC framework. Small core, batteries included, built f
 ## Quick Start
 
 ```bash
+# Create a new project (installs dependencies automatically)
+arc new my-project
+cd my-project
+arc serve
+```
+
+Or add Arc to an existing project:
+
+```bash
 composer require andrewthecoder/arcmvc
 cp -r vendor/andrewthecoder/arcmvc/skeleton/* .
-arc serve
 ```
 
 Visit [http://localhost:8080](http://localhost:8080)
@@ -364,10 +372,12 @@ Only POST requests can be overridden to PUT, PATCH, or DELETE. Use `getOriginalM
 ## Console Commands
 
 ```bash
-arc serve              # Start development server (port 8080)
-arc serve --port 3000  # Custom port
-arc serve:stop         # Stop the development server
-arc route:list         # List registered routes
+arc new my-project       # Create a new Arc project (scaffold, composer install)
+arc serve                # Start development server (port 8080)
+arc serve --port 3000   # Custom port
+arc serve --detach       # Run in background
+arc serve:stop            # Stop the background server
+arc route:list            # List registered routes
 arc make:controller UserController
 arc make:model User
 ```

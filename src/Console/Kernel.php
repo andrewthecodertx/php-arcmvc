@@ -8,9 +8,10 @@ use Arc\Console\Commands\Command;
 use Arc\Console\Commands\HelpCommand;
 use Arc\Console\Commands\MakeControllerCommand;
 use Arc\Console\Commands\MakeModelCommand;
+use Arc\Console\Commands\NewCommand;
+use Arc\Console\Commands\RoutesCommand;
 use Arc\Console\Commands\ServeCommand;
 use Arc\Console\Commands\ServeStopCommand;
-use Arc\Console\Commands\RoutesCommand;
 
 class Kernel
 {
@@ -38,6 +39,10 @@ class Kernel
             return 0;
         }
 
+        if ($name === 'new' || $name === 'create') {
+            $name = 'new';
+        }
+
         if (!isset($this->commands[$name])) {
             echo "Unknown command: {$name}\n";
             echo "Run 'arc help' to see available commands.\n";
@@ -56,6 +61,7 @@ class Kernel
     private function registerDefaultCommands(): void
     {
         $this->register(new HelpCommand($this));
+        $this->register(new NewCommand());
         $this->register(new ServeCommand());
         $this->register(new ServeStopCommand());
         $this->register(new MakeControllerCommand());

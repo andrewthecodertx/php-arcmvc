@@ -22,6 +22,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - `Arc\Http\Session` component with flash message support and `regenerate()` for session fixation prevention
 - `Arc\Config\EnvLoader` for `.env` file parsing (no external dependency)
 - `Arc\Database\DatabaseException` wrapping PDO errors to prevent information leakage
+- `Arc\Http\Middleware\CorsMiddleware` for CORS support with preflight handling (issue 10.3)
 - `Connection::ping()` method for connection health checks
 - `Application::resetInstance()` for test isolation
 - Container auto-wiring via `ReflectionClass` for constructor dependency injection
@@ -29,8 +30,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - Router now resolves controllers and route middleware through the DI container
 - HTTP method override support via `_method` POST field or `X-HTTP-Method-Override` header (issue 10.2)
 - `Request::getOriginalMethod()` to retrieve the true HTTP method before override
-- `CorsMiddleware` for CORS support with preflight handling (issue 10.3)
-- `Arc\Http\Middleware\CorsMiddleware` with configurable origins, methods, headers, credentials, and Max-Age
+- `arc new <name>` command to scaffold a full Arc project with dependencies
 
 ### Changed
 - Router uses `Container` instead of `Application` reference (breaks circular dependency)
