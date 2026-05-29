@@ -93,6 +93,13 @@ class Template
 
     /**
      * Capture a template file with $this bound to this Template instance.
+     *
+     * View data is extracted into local variables via extract(EXTR_SKIP)
+     * for template convenience: `<?= $name ?>`. This means template data keys
+     * can collide with local variables ($path, $data, $this, etc.).
+     *
+     * For explicit, collision-free access, use $this->getData('key') or
+     * $this->allData() instead of relying on extracted variables.
      */
     public function capture(string $path, array $data): string
     {
@@ -101,6 +108,22 @@ class Template
         ob_start();
         include $path;
         return ob_get_clean() ?: '';
+    }
+
+    /**
+     * Get a value from the view data by key (explicit access, no extract collision).
+     */
+    public function getData(string $key, mixed $default = null): mixed
+    {
+        return $this->data[$key] ?? $default;
+    }
+
+    /**
+     * Get all view data (explicit access, no extract collision).
+     */
+    public function allData(): array
+    {
+        return $this->data;
     }
 
     /**

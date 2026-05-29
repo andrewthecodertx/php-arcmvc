@@ -176,4 +176,34 @@ class TemplateTest extends TestCase
         $html = $template->csrfField();
         $this->assertStringContainsString('value="&lt;script&gt;alert(1)&lt;/script&gt;"', $html);
     }
+
+    public function testGetDataReturnsValueByKey(): void
+    {
+        $template = new Template($this->renderer);
+        $tmpFile = $this->tmpDir . '/home/_data.phtml';
+        file_put_contents($tmpFile, 'data test');
+        $template->capture($tmpFile, ['name' => 'Alice', 'age' => 30]);
+        $this->assertSame('Alice', $template->getData('name'));
+        $this->assertSame(30, $template->getData('age'));
+    }
+
+    public function testGetDataReturnsDefaultForMissingKey(): void
+    {
+        $template = new Template($this->renderer);
+        $tmpFile = $this->tmpDir . '/home/_data2.phtml';
+        file_put_contents($tmpFile, 'data test');
+        $template->capture($tmpFile, ['name' => 'Alice']);
+        $this->assertNull($template->getData('missing'));
+        $this->assertSame('default', $template->getData('missing', 'default'));
+    }
+
+    public function testAllDataReturnsEntireDataArray(): void
+    {
+        $template = new Template($this->renderer);
+        $tmpFile = $this->tmpDir . '/home/_data3.phtml';
+        file_put_contents($tmpFile, 'data test');
+        $data = ['name' => 'Bob', 'role' => 'admin'];
+        $template->capture($tmpFile, $data);
+        $this->assertSame($data, $template->allData());
+    }
 }
