@@ -27,6 +27,10 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - Container auto-wiring via `ReflectionClass` for constructor dependency injection
 - `Model::all()` now accepts `$limit` and `$offset` parameters (default: 1000/0)
 - Router now resolves controllers and route middleware through the DI container
+- HTTP method override support via `_method` POST field or `X-HTTP-Method-Override` header (issue 10.2)
+- `Request::getOriginalMethod()` to retrieve the true HTTP method before override
+- `CorsMiddleware` for CORS support with preflight handling (issue 10.3)
+- `Arc\Http\Middleware\CorsMiddleware` with configurable origins, methods, headers, credentials, and Max-Age
 
 ### Changed
 - Router uses `Container` instead of `Application` reference (breaks circular dependency)
@@ -45,4 +49,4 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - Added `psr/container` dependency (was missing, caused Application test failures)
 
 ### Tests
-- Added 220+ tests across 22 test files covering all framework components
+- Added 240+ tests across 24 test files covering all framework components

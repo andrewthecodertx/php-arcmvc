@@ -319,6 +319,48 @@ In production (`APP_DEBUG=false`), errors are logged and a generic error page is
 
 Database errors are wrapped in `DatabaseException` to prevent sensitive SQL and table names from leaking.
 
+## CORS
+
+`CorsMiddleware` handles cross-origin requests and preflight:
+
+```php
+use Arc\Http\Middleware\CorsMiddleware;
+
+// Allow specific origins
+$app->addMiddleware(new CorsMiddleware(allowedOrigins: ['https://app.example.com']));
+
+// Allow all origins (for APIs)
+$app->addMiddleware(new CorsMiddleware(allowedOrigins: '*'));
+
+// With credentials and custom headers
+$app->addMiddleware(new CorsMiddleware(
+    allowedOrigins: ['https://app.example.com'],
+    allowCredentials: true,
+    allowedHeaders: ['Content-Type', 'Authorization', 'X-CSRF-TOKEN'],
+));
+```
+
+## HTTP Method Override
+
+Browser forms only support GET and POST. Arc supports method spoofing via a hidden `_method` field or the `X-HTTP-Method-Override` header:
+
+```html
+<form method="POST" action="/users/1">
+    <?= $this->csrfField() ?>
+    <input type="hidden" name="_method" value="PUT">
+    <input name="name" value="Updated">
+    <button>Update</button>
+</form>
+```
+
+Or via API header:
+
+```
+X-HTTP-Method-Override: PATCH
+```
+
+Only POST requests can be overridden to PUT, PATCH, or DELETE. Use `getOriginalMethod()` to see the actual HTTP method.
+
 ## Console Commands
 
 ```bash
