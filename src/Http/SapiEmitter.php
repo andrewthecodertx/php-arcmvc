@@ -8,6 +8,10 @@ class SapiEmitter
 {
     public function emit(Response $response): void
     {
+        if (headers_sent($file, $line)) {
+            throw new \RuntimeException("Headers already sent in {$file}:{$line}");
+        }
+
         http_response_code($response->getStatusCode());
 
         foreach ($response->getHeaders() as $name => $value) {
