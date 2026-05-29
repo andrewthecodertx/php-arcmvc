@@ -136,4 +136,40 @@ class ValidatorTest extends TestCase
         $v = Validator::make(['slug' => 'hello123'], ['slug' => 'alpha_num']);
         $this->assertTrue($v->passes());
     }
+
+    public function testRegexRuleWithTildeDelimiter(): void
+    {
+        // Patterns using ~ as delimiter now work (changed from / delimiter)
+        $v = Validator::make(['code' => 'abc123'], ['code' => 'regex:^[a-z]+\d+$']);
+        $this->assertTrue($v->passes());
+
+        $v = Validator::make(['code' => 'ABC'], ['code' => 'regex:^[a-z]+$']);
+        $this->assertTrue($v->fails());
+    }
+
+    public function testRegexRuleWithSlashes(): void
+    {
+        // Patterns containing / now work (no delimiter conflict)
+        $v = Validator::make(['path' => '/users/123'], ['path' => 'regex:^/users/\d+$']);
+        $this->assertTrue($v->passes());
+
+        $v = Validator::make(['path' => '/users/abc'], ['path' => 'regex:^/users/\d+$']);
+        $this->assertTrue($v->fails());
+    }
+
+    public function testInvalidRegexPatternFailsValidation(): void
+    {
+        // Invalid regex should fail validation gracefully, not throw
+        $v = Validator::make(['field' => 'test'], ['field' => 'regex:[invalid']);
+        $this->assertTrue($v->fails());
+    }
+
+    public function testRegexRuleWithAnchoredPattern(): void
+    {
+        $v = Validator::make(['zip' => '12345'], ['zip' => 'regex:^\d{5}$']);
+        $this->assertTrue($v->passes());
+
+        $v = Validator::make(['zip' => 'abcde'], ['zip' => 'regex:^\d{5}$']);
+        $this->assertTrue($v->fails());
+    }
 }

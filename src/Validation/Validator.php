@@ -101,7 +101,7 @@ class Validator
             'not_in' => !in_array($value, explode(',', $parameter), true),
             'alpha' => is_string($value) && preg_match('/^[a-zA-Z]+$/', $value),
             'alpha_num' => is_string($value) && preg_match('/^[a-zA-Z0-9]+$/', $value),
-            'regex' => is_string($value) && preg_match('/' . $parameter . '/', $value),
+            'regex' => is_string($value) && self::matchRegex($parameter, $value),
             'date' => strtotime($value) !== false,
             default => true,
         };
@@ -180,5 +180,21 @@ class Validator
             'date' => "{$displayField} must be a valid date",
             default => "{$displayField} is invalid",
         };
+    }
+
+    /**
+     * Safely match a regex pattern against a value.
+     * Uses ~ as delimiter (rarely used in patterns), and returns false
+     * for invalid regex patterns rather than throwing or returning errors.
+     */
+    private static function matchRegex(string $pattern, string $value): bool
+    {
+        $result = @preg_match('~' . $pattern . '~', $value);
+
+        if ($result === false) {
+            return false;
+        }
+
+        return $result === 1;
     }
 }
