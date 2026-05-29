@@ -30,6 +30,12 @@ class Request
 
     /**
      * Create a Request from PHP superglobals ($_SERVER, $_GET, $_POST, etc.).
+     *
+     * Supports HTTP method override for browser forms:
+     * - Via `_method` POST parameter (hidden form field)
+     * - Via `X-HTTP-Method-Override` header (for API clients)
+     *
+     * Only POST requests can be overridden to PUT, PATCH, or DELETE.
      */
     public static function createFromGlobals(): self
     {
@@ -41,6 +47,7 @@ class Request
         $query = [];
         parse_str($_SERVER['QUERY_STRING'] ?? '', $query);
 
+        $post = $_POST;
         $cookies = $_COOKIE;
         $files = $_FILES;
         $server = $_SERVER;
@@ -52,12 +59,25 @@ class Request
             $body = json_decode($rawInput, true) ?? [];
         }
 
+        // HTTP method override: allows PUT/PATCH/DELETE from browser forms
+        $allowedOverrides = ['PUT', 'PATCH', 'DELETE'];
+        if (strtoupper($method) === 'POST') {
+            $override = $post['_method']
+                ?? $headers['X-HTTP-Method-Override']
+                ?? $headers['x-http-method-override']
+                ?? null;
+
+            if ($override !== null && in_array(strtoupper($override), $allowedOverrides, true)) {
+                $method = strtoupper($override);
+            }
+        }
+
         return new self(
             method: $method,
             uri: $uri,
             headers: $headers,
             query: $query,
-            post: $_POST,
+            post: $post,
             body: $body,
             cookies: $cookies,
             files: $files,
@@ -65,10 +85,17 @@ class Request
         );
     }
 
-    /** Get the HTTP method (GET, POST, etc.). */
+    /** Get the HTTP method (GET, POST, etc.). May be overridden from POST via _method or header. */
     public function getMethod(): string
     {
         return $this->method;
+    }
+
+    /** Get the original HTTP method before any override was applied. */
+    public function getOriginalMethod(): string
+    {
+        // Stored in server as the true original method
+        return strtoupper($this->server['REQUEST_METHOD'] ?? $this->method);
     }
 
     /** Get the full request URI including query string. */

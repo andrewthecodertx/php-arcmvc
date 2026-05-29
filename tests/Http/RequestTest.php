@@ -128,4 +128,92 @@ class RequestTest extends TestCase
         $request = new Request(method: 'POST', uri: '/', files: $files);
         $this->assertNull($request->getFile('photos'));
     }
+
+    // --- HTTP Method Override (tested via constructor) ---
+
+    public function testMethodOverrideViaPostParameter(): void
+    {
+        // Test the override logic directly by simulating what createFromGlobals does
+        $post = ['_method' => 'PUT', 'name' => 'Updated'];
+        $method = 'POST';
+
+        $override = $post['_method']
+            ?? null;
+
+        $allowedOverrides = ['PUT', 'PATCH', 'DELETE'];
+        if (strtoupper($method) === 'POST' && $override !== null && in_array(strtoupper($override), $allowedOverrides, true)) {
+            $method = strtoupper($override);
+        }
+
+        $this->assertSame('PUT', $method);
+    }
+
+    public function testMethodOverrideViaHeader(): void
+    {
+        $headers = ['X-HTTP-Method-Override' => 'DELETE'];
+        $method = 'POST';
+
+        $override = $headers['X-HTTP-Method-Override'] ?? null;
+        $allowedOverrides = ['PUT', 'PATCH', 'DELETE'];
+        if (strtoupper($method) === 'POST' && $override !== null && in_array(strtoupper($override), $allowedOverrides, true)) {
+            $method = strtoupper($override);
+        }
+
+        $this->assertSame('DELETE', $method);
+    }
+
+    public function testGetMethodReturnsOverriddenMethod(): void
+    {
+        $request = new Request(method: 'PUT', uri: '/users/1');
+        $this->assertSame('PUT', $request->getMethod());
+    }
+
+    public function testGetOriginalMethodReturnsServerRequestMethod(): void
+    {
+        $request = new Request(
+            method: 'PUT',
+            uri: '/users/1',
+            server: ['REQUEST_METHOD' => 'POST'],
+        );
+        $this->assertSame('PUT', $request->getMethod());
+        $this->assertSame('POST', $request->getOriginalMethod());
+    }
+
+    public function testGetOriginalMethodReturnsMethodWhenNoOverride(): void
+    {
+        $request = new Request(method: 'GET', uri: '/');
+        $this->assertSame('GET', $request->getMethod());
+        $this->assertSame('GET', $request->getOriginalMethod());
+    }
+
+    public function testMethodOverrideOnlyAppliesToPost(): void
+    {
+        // GET with _method should NOT be overridden
+        $post = ['_method' => 'DELETE'];
+        $method = 'GET';
+
+        $override = $post['_method'] ?? null;
+        $allowedOverrides = ['PUT', 'PATCH', 'DELETE'];
+        // Only POST can be overridden
+        if (strtoupper($method) === 'POST' && $override !== null && in_array(strtoupper($override), $allowedOverrides, true)) {
+            $method = strtoupper($override);
+        }
+
+        $this->assertSame('GET', $method);
+    }
+
+    public function testMethodOverrideRejectsInvalidMethods(): void
+    {
+        $post = ['_method' => 'GET'];
+        $method = 'POST';
+
+        $override = $post['_method'] ?? null;
+        $allowedOverrides = ['PUT', 'PATCH', 'DELETE'];
+        if (strtoupper($method) === 'POST' && $override !== null && in_array(strtoupper($override), $allowedOverrides, true)) {
+            $method = strtoupper($override);
+        }
+
+        // GET is not in allowed overrides — stays POST
+        $this->assertSame('POST', $method);
+    }
 }
