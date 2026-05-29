@@ -17,6 +17,8 @@ use Arc\Container\Container;
 
 class Application
 {
+    public const VERSION = '1.0.0-dev';
+
     private static ?Application $instance = null;
     private Repository $config;
     private Router $router;
