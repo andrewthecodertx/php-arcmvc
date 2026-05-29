@@ -50,11 +50,34 @@ class Connection
         return $this->pdo;
     }
 
+    /**
+     * Check if the database connection is alive.
+     * Returns true if connected, false if the connection has been lost.
+     */
+    public function ping(): bool
+    {
+        try {
+            $this->getPdo()->query('SELECT 1');
+            return true;
+        } catch (\PDOException) {
+            $this->pdo = null;
+            return false;
+        }
+    }
+
     public function query(string $sql, array $bindings = []): PDOStatement
     {
-        $stmt = $this->getPdo()->prepare($sql);
-        $stmt->execute($bindings);
-        return $stmt;
+        try {
+            $stmt = $this->getPdo()->prepare($sql);
+            $stmt->execute($bindings);
+            return $stmt;
+        } catch (\PDOException $e) {
+            throw new DatabaseException(
+                'Database query failed: ' . $e->getMessage(),
+                $sql,
+                $e,
+            );
+        }
     }
 
     public function select(string $sql, array $bindings = []): array
