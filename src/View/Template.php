@@ -41,16 +41,21 @@ class Template
 
     public function section(string $name, string $content): void
     {
-        $this->sections[$name] = htmlspecialchars($content, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+        $this->sections[$name] = $content;
     }
 
     public function yield(string $name, string $default = ''): string
     {
         if ($name === 'content') {
-            return htmlspecialchars($this->content, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+            return $this->content;
         }
 
-        return htmlspecialchars($this->sections[$name] ?? $default, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+        return $this->sections[$name] ?? $default;
+    }
+
+    public function e(string $value): string
+    {
+        return htmlspecialchars($value, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
     }
 
     public function partial(string $template, array $data = []): string
@@ -94,3 +99,4 @@ class Template
         return ob_get_clean() ?: '';
     }
 }
+
