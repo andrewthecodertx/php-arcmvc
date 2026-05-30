@@ -77,6 +77,9 @@ class NewCommand extends Command
             return 1;
         }
 
+        $this->success('  Configuring project...');
+        $this->configureProject($projectPath, $name);
+
         $this->success('  Creating .env file...');
         $this->createEnvFile($projectPath);
 
@@ -114,6 +117,7 @@ class NewCommand extends Command
             '',
             'app/Controllers',
             'app/Models',
+            'bin',
             'config',
             'database',
             'public',
@@ -162,6 +166,25 @@ class NewCommand extends Command
 
         $this->recursiveCopy($skeletonPath, $projectPath);
         return true;
+    }
+
+    private function configureProject(string $projectPath, string $name): void
+    {
+        // Replace placeholders in composer.json
+        $composerJson = $projectPath . '/composer.json';
+        if (file_exists($composerJson)) {
+            $content = file_get_contents($composerJson);
+            $vendor = strtolower(preg_replace('/[^a-zA-Z0-9_-]/', '', $name));
+            $content = str_replace('{{VENDOR}}', $vendor, $content);
+            $content = str_replace('{{PROJECT}}', $name, $content);
+            file_put_contents($composerJson, $content);
+        }
+
+        // Make bin/arc executable
+        $binArc = $projectPath . '/bin/arc';
+        if (file_exists($binArc)) {
+            chmod($binArc, 0755);
+        }
     }
 
     private function recursiveCopy(string $src, string $dst): void
@@ -231,6 +254,30 @@ ENV;
             return false;
         }
 
+        // Detect dev install: if running from framework source, add a path
+        // repository so composer can resolve andrewthecoder/arcmvc locally
+        $arcRoot = dirname(__DIR__, 3);
+        if (file_exists($arcRoot . '/composer.json')) {
+            $arcComposer = json_decode(file_get_contents($arcRoot . '/composer.json'), true);
+            if (($arcComposer['name'] ?? '') === 'andrewthecoder/arcmvc') {
+                $projectComposer = json_decode(file_get_contents($projectPath . '/composer.json'), true);
+                $projectComposer['repositories'] = [
+                    [
+                        'type' => 'path',
+                        'url' => $arcRoot,
+                        'options' => ['symlink' => true],
+                    ],
+                ];
+                // Unstable source has no tags, so use dev-main constraint
+                $projectComposer['require']['andrewthecoder/arcmvc'] = 'dev-main';
+                $projectComposer['minimum-stability'] = 'dev';
+                file_put_contents(
+                    $projectPath . '/composer.json',
+                    json_encode($projectComposer, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) . "\n"
+                );
+            }
+        }
+
         $process = new Process([$composer, 'install', '--no-interaction'], $projectPath);
         $process->setTimeout(300);
         $process->run();
@@ -246,7 +293,13 @@ ENV;
 
     private function runTests(string $projectPath): void
     {
-        $process = new Process('php bin/phpunit', $projectPath);
+        $phpunit = $projectPath . '/vendor/bin/phpunit';
+        if (!file_exists($phpunit)) {
+            $this->warning('  phpunit not found. Skipping test run.');
+            return;
+        }
+
+        $process = new Process([$phpunit], $projectPath);
         $process->setTimeout(60);
         $process->run(function ($type, $buffer) {
             if ($type === Process::OUT) {
