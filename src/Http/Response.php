@@ -16,6 +16,9 @@ class Response
     private array $headers = [];
     private string $content = '';
 
+    /** @var array<int, Cookie> */
+    private array $cookies = [];
+
     public function __construct(string $content = '', int $statusCode = 200, array $headers = [])
     {
         $this->content = $content;
@@ -43,6 +46,25 @@ class Response
     public function getHeaders(): array
     {
         return $this->headers;
+    }
+
+    /**
+     * Queue a cookie to be emitted as its own Set-Cookie header.
+     *
+     * Cookies are stored separately from the header map so that multiple
+     * cookies (e.g. CSRF + session + application) can coexist on one response;
+     * a flat name => value header map would let them overwrite each other.
+     */
+    public function addCookie(Cookie $cookie): self
+    {
+        $this->cookies[] = $cookie;
+        return $this;
+    }
+
+    /** @return array<int, Cookie> */
+    public function getCookies(): array
+    {
+        return $this->cookies;
     }
 
     public function setContent(string $content): self

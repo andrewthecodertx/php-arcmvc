@@ -56,9 +56,13 @@ class Template
         return $this->sections[$name] ?? $default;
     }
 
-    public function e(string $value): string
+    /**
+     * Escape a value for safe HTML output. Accepts scalars and null
+     * (templates frequently echo nullable values) — null renders as ''.
+     */
+    public function e(string|int|float|bool|null $value): string
     {
-        return htmlspecialchars($value, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+        return htmlspecialchars((string) $value, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
     }
 
     public function partial(string $template, array $data = []): string

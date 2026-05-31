@@ -216,4 +216,63 @@ class RequestTest extends TestCase
         // GET is not in allowed overrides — stays POST
         $this->assertSame('POST', $method);
     }
+
+    // --- Client IP resolution ---
+
+    public function testIpReturnsRemoteAddrByDefault(): void
+    {
+        $request = new Request(method: 'GET', uri: '/', server: ['REMOTE_ADDR' => '203.0.113.7']);
+        $this->assertSame('203.0.113.7', $request->ip());
+    }
+
+    public function testIpIgnoresForwardedHeaderFromUntrustedPeer(): void
+    {
+        $request = new Request(
+            method: 'GET',
+            uri: '/',
+            headers: ['X-Forwarded-For' => '1.2.3.4'],
+            server: ['REMOTE_ADDR' => '203.0.113.7'],
+        );
+        // Peer is not a trusted proxy → XFF must be ignored (no spoofing).
+        $this->assertSame('203.0.113.7', $request->ip(['10.0.0.1']));
+    }
+
+    public function testIpHonorsForwardedHeaderFromTrustedProxy(): void
+    {
+        $request = new Request(
+            method: 'GET',
+            uri: '/',
+            headers: ['X-Forwarded-For' => '1.2.3.4, 10.0.0.1'],
+            server: ['REMOTE_ADDR' => '10.0.0.1'],
+        );
+        // Walk the chain from the right, skipping trusted proxies → real client.
+        $this->assertSame('1.2.3.4', $request->ip(['10.0.0.1']));
+    }
+
+    // --- HTTPS detection ---
+
+    public function testIsSecureFalseForPlainHttp(): void
+    {
+        $request = new Request(method: 'GET', uri: '/', server: ['REMOTE_ADDR' => '127.0.0.1']);
+        $this->assertFalse($request->isSecure());
+    }
+
+    public function testIsSecureTrueWhenHttpsServerVarSet(): void
+    {
+        $request = new Request(method: 'GET', uri: '/', server: ['HTTPS' => 'on']);
+        $this->assertTrue($request->isSecure());
+    }
+
+    public function testIsSecureHonorsForwardedProtoFromTrustedProxy(): void
+    {
+        $request = new Request(
+            method: 'GET',
+            uri: '/',
+            headers: ['X-Forwarded-Proto' => 'https'],
+            server: ['REMOTE_ADDR' => '10.0.0.1'],
+        );
+        $this->assertTrue($request->isSecure(['10.0.0.1']));
+        // ...but not from an untrusted peer.
+        $this->assertFalse($request->isSecure([]));
+    }
 }

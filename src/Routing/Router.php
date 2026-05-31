@@ -122,7 +122,10 @@ class Router
         $method = $request->getMethod();
         $path = $request->getPath();
 
-        if (strtolower($method) === 'head') {
+        // HEAD is served by the matching GET route, but the body is stripped
+        // before the response leaves the router (per HTTP semantics).
+        $isHead = strtolower($method) === 'head';
+        if ($isHead) {
             $method = 'GET';
         }
 
@@ -133,24 +136,53 @@ class Router
                 $params = array_filter($matches, 'is_string', ARRAY_FILTER_USE_KEY);
 
                 if (!empty($route['middleware'])) {
-                    return $this->runRouteMiddleware($route['middleware'], $request, $route, $params);
+                    $response = $this->runRouteMiddleware($route['middleware'], $request, $route, $params);
+                } else {
+                    $response = $this->normalizeResponse(
+                        $this->executeCallback($route['callback'], $request, $params)
+                    );
                 }
 
-                $response = $this->executeCallback($route['callback'], $request, $params);
-
-                return $this->normalizeResponse($response);
+                return $isHead ? $response->setContent('') : $response;
             }
         }
 
-        if ($method !== 'GET' && isset($this->routes['GET'])) {
-            foreach ($this->routes['GET'] as $pattern => $route) {
-                if (preg_match("#^{$pattern}$#", $path)) {
-                    return new Response('', 405);
-                }
-            }
+        // Path exists under other methods → 405 Method Not Allowed with Allow header (RFC 9110).
+        $allowed = $this->allowedMethodsFor($path, $method);
+        if ($allowed !== []) {
+            return new Response('', 405, ['Allow' => implode(', ', $allowed)]);
         }
 
         throw new RouteNotFoundException($path);
+    }
+
+    /**
+     * Collect the HTTP methods registered for a path, excluding $except.
+     * GET implicitly allows HEAD.
+     *
+     * @return array<int, string>
+     */
+    private function allowedMethodsFor(string $path, string $except): array
+    {
+        $allowed = [];
+
+        foreach ($this->routes as $routeMethod => $routes) {
+            if ($routeMethod === $except) {
+                continue;
+            }
+
+            foreach ($routes as $pattern => $_) {
+                if (preg_match("#^{$pattern}$#", $path)) {
+                    $allowed[] = $routeMethod;
+                    if ($routeMethod === 'GET') {
+                        $allowed[] = 'HEAD';
+                    }
+                    break;
+                }
+            }
+        }
+
+        return array_values(array_unique($allowed));
     }
 
     private function runRouteMiddleware(array $middleware, Request $request, array $route, array $params): Response
@@ -184,7 +216,12 @@ class Router
             $controller = new $controllerClass();
         }
 
-        if (method_exists($controller, 'setRequest')) {
+        if ($controller instanceof \Arc\Support\Controller) {
+            $controller->setRequest($request);
+            if ($this->container !== null) {
+                $controller->setRenderer($this->container->get(\Arc\View\Renderer::class));
+            }
+        } elseif (method_exists($controller, 'setRequest')) {
             $controller->setRequest($request);
         }
 

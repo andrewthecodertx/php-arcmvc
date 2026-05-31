@@ -27,8 +27,29 @@ class Session
             return;
         }
 
+        // Apply secure cookie defaults explicitly rather than relying on php.ini.
+        // Secure is enabled when the request arrived over HTTPS so local HTTP
+        // development still works.
+        session_set_cookie_params([
+            'lifetime' => 0,
+            'path' => '/',
+            'secure' => $this->requestIsSecure(),
+            'httponly' => true,
+            'samesite' => 'Lax',
+        ]);
+
         session_start();
         $this->started = true;
+    }
+
+    private function requestIsSecure(): bool
+    {
+        $https = $_SERVER['HTTPS'] ?? '';
+        if ($https !== '' && strtolower((string) $https) !== 'off') {
+            return true;
+        }
+
+        return (string) ($_SERVER['SERVER_PORT'] ?? '') === '443';
     }
 
     /**
@@ -119,6 +140,20 @@ class Session
     {
         if (session_status() === PHP_SESSION_ACTIVE) {
             $_SESSION = [];
+
+            // Expire the session cookie itself so the client stops sending it.
+            if (!headers_sent()) {
+                $params = session_get_cookie_params();
+                setcookie(session_name(), '', [
+                    'expires' => time() - 42000,
+                    'path' => $params['path'] ?: '/',
+                    'domain' => $params['domain'] ?? '',
+                    'secure' => $params['secure'] ?? false,
+                    'httponly' => $params['httponly'] ?? true,
+                    'samesite' => $params['samesite'] ?? 'Lax',
+                ]);
+            }
+
             session_destroy();
             $this->started = false;
         }

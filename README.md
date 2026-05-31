@@ -177,17 +177,28 @@ new SecurityMiddleware(
 
 ### CSRF
 
-`CsrfMiddleware` uses the synchronizer token pattern with a SameSite=Strict HttpOnly cookie. Token is attached to the request as `_csrf_token` attribute, accessible in controllers.
+`CsrfMiddleware` uses the double-submit cookie pattern with a SameSite=Strict, HttpOnly cookie (marked `Secure` automatically on HTTPS requests). The token is attached to the request as the `_csrf_token` attribute and is automatically passed to views rendered via `Controller::view()`, so `csrfField()` works without manual wiring.
 
 ### Rate Limiting
 
-`RateLimitMiddleware` tracks requests per IP with configurable limits:
+`RateLimitMiddleware` tracks requests per client IP with configurable limits:
 
 ```php
 new RateLimitMiddleware(maxRequests: 100, windowSeconds: 60);
 ```
 
-For multi-process deployments, implement `RateLimitStoreInterface` with Redis or a database backend.
+Behind a reverse proxy, pass the proxy IPs as `trustedProxies` so the client is read from `X-Forwarded-For` (it is ignored from untrusted peers, preventing spoofing). For stricter per-route limits, supply a `keyResolver`:
+
+```php
+new RateLimitMiddleware(
+    maxRequests: 5,
+    windowSeconds: 60,
+    trustedProxies: ['10.0.0.1'],
+    keyResolver: fn ($request) => 'login:' . $request->ip(['10.0.0.1']),
+);
+```
+
+The default in-memory store is per-process; for multi-process or distributed deployments, implement `RateLimitStoreInterface` with Redis or a database backend.
 
 ## Database and Models
 

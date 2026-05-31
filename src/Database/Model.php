@@ -69,9 +69,16 @@ class Model
     {
         $instance = new static();
         self::assertValidIdentifier($instance->table, 'table name');
+
+        // LIMIT/OFFSET are inlined rather than bound: with native prepares
+        // (ATTR_EMULATE_PREPARES => false) MySQL rejects string-bound integers
+        // in LIMIT clauses. These values are int-typed parameters, so inlining
+        // them is injection-safe.
+        $limit = max(0, $limit);
+        $offset = max(0, $offset);
+
         return static::getConnection()->select(
-            "SELECT * FROM `{$instance->table}` LIMIT :limit OFFSET :offset",
-            ['limit' => $limit, 'offset' => $offset],
+            "SELECT * FROM `{$instance->table}` LIMIT {$limit} OFFSET {$offset}",
         );
     }
 
@@ -149,10 +156,13 @@ class Model
         }
 
         $sets = implode(', ', array_map(fn (string $col) => "`{$col}` = :{$col}", array_keys($data)));
-        $data['id'] = $id;
+
+        // Use a reserved placeholder for the WHERE clause so it never collides
+        // with a fillable column literally named after the primary key.
+        $data['__pk'] = $id;
 
         return static::getConnection()->update(
-            "UPDATE `{$instance->table}` SET {$sets} WHERE `{$instance->primaryKey}` = :id",
+            "UPDATE `{$instance->table}` SET {$sets} WHERE `{$instance->primaryKey}` = :__pk",
             $data,
         );
     }

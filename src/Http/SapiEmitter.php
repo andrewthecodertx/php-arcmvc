@@ -18,6 +18,12 @@ class SapiEmitter
             header("{$name}: {$value}");
         }
 
+        // Cookies are emitted as repeated Set-Cookie headers (replace = false)
+        // so multiple cookies on one response are all sent to the client.
+        foreach ($response->getCookies() as $cookie) {
+            header('Set-Cookie: ' . $cookie->toHeader(), false);
+        }
+
         echo $response->getContent();
     }
 }

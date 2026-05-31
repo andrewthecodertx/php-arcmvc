@@ -16,6 +16,11 @@ use Arc\Http\Response;
  *
  * Uses an in-memory store by default. For multi-process or distributed
  * deployments, inject a StoreInterface implementation backed by Redis or a database.
+ *
+ * By default requests are keyed on the client IP (REMOTE_ADDR). Behind a
+ * reverse proxy, pass $trustedProxies so X-Forwarded-For is honored only from
+ * those peers. For stricter per-route limits (e.g. /login), supply a
+ * $keyResolver that derives the bucket key from the request.
  */
 class RateLimitMiddleware implements MiddlewareInterface
 {
@@ -23,11 +28,28 @@ class RateLimitMiddleware implements MiddlewareInterface
     private int $windowSeconds;
     private RateLimitStoreInterface $store;
 
-    public function __construct(int $maxRequests = 60, int $windowSeconds = 60, ?RateLimitStoreInterface $store = null)
-    {
+    /** @var array<int, string> */
+    private array $trustedProxies;
+
+    /** @var (\Closure(Request): string)|null */
+    private ?\Closure $keyResolver;
+
+    /**
+     * @param array<int, string>            $trustedProxies Proxy IPs allowed to set X-Forwarded-For
+     * @param (\Closure(Request): string)|null $keyResolver  Custom bucket key resolver
+     */
+    public function __construct(
+        int $maxRequests = 60,
+        int $windowSeconds = 60,
+        ?RateLimitStoreInterface $store = null,
+        array $trustedProxies = [],
+        ?\Closure $keyResolver = null,
+    ) {
         $this->maxRequests = $maxRequests;
         $this->windowSeconds = $windowSeconds;
         $this->store = $store ?? new InMemoryRateLimitStore();
+        $this->trustedProxies = $trustedProxies;
+        $this->keyResolver = $keyResolver;
     }
 
     public function handle(Request $request, callable $next): Response
@@ -53,7 +75,11 @@ class RateLimitMiddleware implements MiddlewareInterface
 
     private function resolveKey(Request $request): string
     {
-        $ip = $request->ip() ?? 'unknown';
+        if ($this->keyResolver !== null) {
+            return ($this->keyResolver)($request);
+        }
+
+        $ip = $request->ip($this->trustedProxies) ?? 'unknown';
         return 'rate_limit:' . $ip;
     }
 }

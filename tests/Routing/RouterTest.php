@@ -158,6 +158,35 @@ class RouterTest extends TestCase
         $this->assertSame(200, $response->getStatusCode());
     }
 
+    public function testHeadResponseHasNoBody(): void
+    {
+        $this->router->get('/resource', fn (Request $req) => 'resource body');
+        $response = $this->router->dispatch(new Request(method: 'HEAD', uri: '/resource'));
+        $this->assertSame('', $response->getContent());
+    }
+
+    public function testMethodNotAllowedDetectedForNonGetRoute(): void
+    {
+        // A path registered only under PUT, requested via POST, should be 405 (not 404).
+        $this->router->put('/widgets/{id}', fn (Request $req, string $id) => new Response('updated'));
+        $response = $this->router->dispatch(new Request(method: 'POST', uri: '/widgets/5'));
+        $this->assertSame(405, $response->getStatusCode());
+    }
+
+    public function testMethodNotAllowedIncludesAllowHeader(): void
+    {
+        $this->router->get('/resource', fn (Request $req) => new Response('OK'));
+        $this->router->delete('/resource', fn (Request $req) => new Response('gone'));
+
+        $response = $this->router->dispatch(new Request(method: 'POST', uri: '/resource'));
+        $this->assertSame(405, $response->getStatusCode());
+
+        $allow = $response->getHeaders()['Allow'] ?? '';
+        $this->assertStringContainsString('GET', $allow);
+        $this->assertStringContainsString('HEAD', $allow);
+        $this->assertStringContainsString('DELETE', $allow);
+    }
+
     public function testContainerResolvesController(): void
     {
         $container = new Container();

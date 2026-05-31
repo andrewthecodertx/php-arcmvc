@@ -15,9 +15,33 @@ class InMemoryRateLimitStore implements RateLimitStoreInterface
     /** @var array<string, array{count: int, expires: int}> */
     private array $buckets = [];
 
+    private static bool $warned = false;
+
+    public function __construct()
+    {
+        // This store is per-process and non-persistent: under PHP-FPM with N
+        // workers the effective limit is ~N× the configured value, and state is
+        // lost on restart. Warn once when used outside the CLI so it is not
+        // silently relied upon in production.
+        if (PHP_SAPI !== 'cli' && !self::$warned) {
+            self::$warned = true;
+            trigger_error(
+                'InMemoryRateLimitStore is per-process and not suitable for production. '
+                . 'Use a shared store (Redis/database) behind a multi-worker SAPI.',
+                E_USER_WARNING
+            );
+        }
+    }
+
     public function increment(string $key, int $windowSeconds): int
     {
         $now = time();
+
+        // Probabilistically reclaim expired buckets so memory stays bounded
+        // even when no external scheduler calls gc().
+        if (random_int(1, 100) === 1) {
+            $this->gc();
+        }
 
         if (!isset($this->buckets[$key]) || $this->buckets[$key]['expires'] <= $now) {
             $this->buckets[$key] = [

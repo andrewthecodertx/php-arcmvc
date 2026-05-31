@@ -46,6 +46,15 @@ class CorsMiddleware implements MiddlewareInterface
         $this->allowedHeaders = $allowedHeaders;
         $this->allowCredentials = $allowCredentials;
         $this->maxAge = $maxAge;
+
+        // The CORS spec forbids reflecting a wildcard origin together with
+        // credentials; browsers reject the response. Fail fast at construction.
+        if ($allowCredentials && in_array('*', $this->allowedOrigins, true)) {
+            throw new \InvalidArgumentException(
+                'CORS misconfiguration: allowedOrigins "*" cannot be combined with allowCredentials. '
+                . 'Specify explicit origins when credentials are enabled.'
+            );
+        }
     }
 
     public function handle(Request $request, callable $next): Response
@@ -71,13 +80,23 @@ class CorsMiddleware implements MiddlewareInterface
             return new Response('', 204);
         }
 
-        return new Response('', 204, [
+        $headers = [
             'Access-Control-Allow-Origin' => $this->resolveOrigin($origin),
             'Access-Control-Allow-Methods' => implode(', ', $this->allowedMethods),
             'Access-Control-Allow-Headers' => implode(', ', $this->allowedHeaders),
-            'Access-Control-Allow-Credentials' => $this->allowCredentials ? 'true' : 'false',
             'Access-Control-Max-Age' => (string) $this->maxAge,
-        ]);
+        ];
+
+        if ($this->allowCredentials) {
+            $headers['Access-Control-Allow-Credentials'] = 'true';
+        }
+
+        // When the response varies per-origin, caches must key on Origin.
+        if (!$this->isWildcard()) {
+            $headers['Vary'] = 'Origin';
+        }
+
+        return new Response('', 204, $headers);
     }
 
     /**
@@ -94,6 +113,11 @@ class CorsMiddleware implements MiddlewareInterface
                 $response->setHeader('Access-Control-Allow-Credentials', 'true');
             }
 
+            // When the response varies per-origin, caches must key on Origin.
+            if (!$this->isWildcard()) {
+                $response->setHeader('Vary', 'Origin');
+            }
+
             // Expose headers that JavaScript clients can read
             $response->setHeader('Access-Control-Expose-Headers', 'X-RateLimit-Limit, X-RateLimit-Remaining');
         }
@@ -104,6 +128,11 @@ class CorsMiddleware implements MiddlewareInterface
     /**
      * Check if the request origin is in the allowed list.
      */
+    private function isWildcard(): bool
+    {
+        return in_array('*', $this->allowedOrigins, true);
+    }
+
     private function isOriginAllowed(?string $origin): bool
     {
         if ($origin === null) {

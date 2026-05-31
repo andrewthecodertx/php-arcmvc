@@ -14,6 +14,7 @@
         "php": ">=8.4",
         "ext-pdo": "*",
         "psr/container": "^2.0",
+        "psr/log": "^3.0",
         "symfony/filesystem": "^8.1",
         "symfony/process": "^8.1"
     },

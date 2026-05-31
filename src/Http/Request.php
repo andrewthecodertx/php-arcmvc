@@ -310,9 +310,68 @@ class Request
         return $this->attributes;
     }
 
-    /** Get the client IP address from REMOTE_ADDR. */
-    public function ip(): ?string
+    /**
+     * Get the client IP address.
+     *
+     * By default returns REMOTE_ADDR. If the immediate peer (REMOTE_ADDR) is a
+     * configured trusted proxy, the X-Forwarded-For chain is walked from right
+     * to left and the first address that is not itself a trusted proxy is
+     * returned. X-Forwarded-For is never honored from untrusted peers, so the
+     * key cannot be spoofed by arbitrary clients.
+     *
+     * @param array<int, string> $trustedProxies IPs allowed to set X-Forwarded-For
+     */
+    public function ip(array $trustedProxies = []): ?string
     {
-        return $this->server['REMOTE_ADDR'] ?? null;
+        $remote = $this->server['REMOTE_ADDR'] ?? null;
+
+        if ($remote === null || $trustedProxies === [] || !in_array($remote, $trustedProxies, true)) {
+            return $remote;
+        }
+
+        $forwarded = $this->getHeader('X-Forwarded-For');
+        if ($forwarded === null || $forwarded === '') {
+            return $remote;
+        }
+
+        $chain = array_map('trim', explode(',', $forwarded));
+        for ($i = count($chain) - 1; $i >= 0; $i--) {
+            if (!in_array($chain[$i], $trustedProxies, true)) {
+                return $chain[$i];
+            }
+        }
+
+        return $chain[0] ?? $remote;
+    }
+
+    /**
+     * Determine whether the request was made over HTTPS.
+     *
+     * Recognizes a direct TLS connection (HTTPS server var or port 443).
+     * X-Forwarded-Proto is only trusted when the immediate peer is one of the
+     * supplied trusted proxies.
+     *
+     * @param array<int, string> $trustedProxies IPs allowed to set X-Forwarded-Proto
+     */
+    public function isSecure(array $trustedProxies = []): bool
+    {
+        $https = $this->server['HTTPS'] ?? '';
+        if ($https !== '' && strtolower((string) $https) !== 'off') {
+            return true;
+        }
+
+        if ((string) ($this->server['SERVER_PORT'] ?? '') === '443') {
+            return true;
+        }
+
+        $remote = $this->server['REMOTE_ADDR'] ?? null;
+        if ($remote !== null && in_array($remote, $trustedProxies, true)) {
+            $proto = $this->getHeader('X-Forwarded-Proto');
+            if ($proto !== null && strtolower(trim(explode(',', $proto)[0])) === 'https') {
+                return true;
+            }
+        }
+
+        return false;
     }
 }

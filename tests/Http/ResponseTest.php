@@ -5,10 +5,36 @@ declare(strict_types=1);
 namespace Tests\Http;
 
 use PHPUnit\Framework\TestCase;
+use Arc\Http\Cookie;
 use Arc\Http\Response;
 
 class ResponseTest extends TestCase
 {
+    public function testMultipleCookiesAreRetained(): void
+    {
+        $response = new Response();
+        $response->addCookie(new Cookie('csrf_token', 'abc'));
+        $response->addCookie(new Cookie('session', 'xyz'));
+
+        $cookies = $response->getCookies();
+        $this->assertCount(2, $cookies);
+        $this->assertSame('csrf_token', $cookies[0]->name);
+        $this->assertSame('session', $cookies[1]->name);
+    }
+
+    public function testCookieHeaderRendersAttributes(): void
+    {
+        $cookie = new Cookie('id', 'v', secure: true, httpOnly: true, sameSite: 'Strict', maxAge: 3600);
+        $header = $cookie->toHeader();
+
+        $this->assertStringStartsWith('id=v', $header);
+        $this->assertStringContainsString('Path=/', $header);
+        $this->assertStringContainsString('Max-Age=3600', $header);
+        $this->assertStringContainsString('SameSite=Strict', $header);
+        $this->assertStringContainsString('Secure', $header);
+        $this->assertStringContainsString('HttpOnly', $header);
+    }
+
     public function testDefaultResponse(): void
     {
         $response = new Response('Hello', 200);

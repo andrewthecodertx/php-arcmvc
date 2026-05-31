@@ -56,11 +56,34 @@ class CsrfMiddlewareTest extends TestCase
         $next = fn (Request $req): Response => new Response('OK');
 
         $response = $this->middleware->handle($request, $next);
-        $header = $response->getHeaders()['Set-Cookie'] ?? null;
-        $this->assertNotNull($header);
+        $cookies = $response->getCookies();
+        $this->assertCount(1, $cookies);
+        $header = $cookies[0]->toHeader();
         $this->assertStringStartsWith('csrf_token=', $header);
         $this->assertStringContainsString('SameSite=Strict', $header);
         $this->assertStringContainsString('HttpOnly', $header);
+    }
+
+    public function testCsrfCookieIsSecureOnHttpsRequests(): void
+    {
+        $request = new Request(
+            method: 'GET',
+            uri: '/test',
+            server: ['HTTPS' => 'on'],
+        );
+        $next = fn (Request $req): Response => new Response('OK');
+
+        $response = $this->middleware->handle($request, $next);
+        $this->assertStringContainsString('Secure', $response->getCookies()[0]->toHeader());
+    }
+
+    public function testCsrfCookieNotSecureOnPlainHttp(): void
+    {
+        $request = $this->createRequest('GET');
+        $next = fn (Request $req): Response => new Response('OK');
+
+        $response = $this->middleware->handle($request, $next);
+        $this->assertStringNotContainsString('Secure', $response->getCookies()[0]->toHeader());
     }
 
     public function testGetRequestDoesNotSetCookieWhenAlreadyPresent(): void
@@ -70,7 +93,7 @@ class CsrfMiddlewareTest extends TestCase
         $next = fn (Request $req): Response => new Response('OK');
 
         $response = $this->middleware->handle($request, $next);
-        $this->assertArrayNotHasKey('Set-Cookie', $response->getHeaders());
+        $this->assertSame([], $response->getCookies());
     }
 
     public function testPostRequestRejectsMissingToken(): void

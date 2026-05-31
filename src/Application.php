@@ -154,7 +154,7 @@ class Application
 
             return $this->router->dispatch($request);
         } catch (\Throwable $e) {
-            return $this->exceptionHandler->handle($e);
+            return $this->exceptionHandler->handle($e, $request);
         }
     }
 

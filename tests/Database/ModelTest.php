@@ -197,4 +197,54 @@ class ModelTest extends TestCase
         $results = TestModel::where('name', 'Test');
         $this->assertCount(1, $results);
     }
+
+    public function testAllAppliesLimitAndOffset(): void
+    {
+        $this->skipWithoutSqlite();
+        TestModel::setConnection($this->createConnection());
+        foreach (['a', 'b', 'c', 'd'] as $name) {
+            TestModel::create(['name' => $name, 'email' => "{$name}@test.com"]);
+        }
+
+        $page = TestModel::all(limit: 2, offset: 1);
+        $this->assertCount(2, $page);
+        $this->assertSame('b', $page[0]['name']);
+        $this->assertSame('c', $page[1]['name']);
+    }
+
+    public function testUpdatePersistsFillableValues(): void
+    {
+        $this->skipWithoutSqlite();
+        TestModel::setConnection($this->createConnection());
+        $id = TestModel::create(['name' => 'Original', 'email' => 'orig@test.com']);
+
+        $affected = TestModel::update($id, ['name' => 'Renamed']);
+        $this->assertSame(1, $affected);
+
+        $row = TestModel::find($id);
+        $this->assertSame('Renamed', $row['name']);
+    }
+
+    public function testUpdateHandlesFillableColumnNamedLikePrimaryKey(): void
+    {
+        $this->skipWithoutSqlite();
+
+        // A model whose fillable set includes a column named after the primary
+        // key must not collide with the WHERE-clause placeholder.
+        $conn = Connection::make(['driver' => 'sqlite', 'database' => ':memory:']);
+        $conn->statement('CREATE TABLE widgets (id INTEGER PRIMARY KEY, name TEXT)');
+
+        $model = new class extends Model {
+            protected string $table = 'widgets';
+            protected string $primaryKey = 'id';
+            protected array $fillable = ['name'];
+        };
+        $model::setConnection($conn);
+
+        $id = $model::create(['name' => 'first']);
+        $affected = $model::update($id, ['name' => 'second']);
+
+        $this->assertSame(1, $affected);
+        $this->assertSame('second', $model::find($id)['name']);
+    }
 }

@@ -4,16 +4,23 @@ declare(strict_types=1);
 
 namespace Arc\Http\Middleware;
 
+use Arc\Http\Cookie;
 use Arc\Http\MiddlewareInterface;
 use Arc\Http\Request;
 use Arc\Http\Response;
 
 /**
- * CSRF protection middleware using the synchronizer token pattern.
+ * CSRF protection middleware using the double-submit cookie pattern.
  *
- * Generates a per-session token stored in a cookie, validates it on
- * unsafe HTTP methods (POST, PUT, PATCH, DELETE). Skips validation
- * for safe methods (GET, HEAD, OPTIONS).
+ * A random token is stored in a cookie and must be echoed back on unsafe HTTP
+ * methods (POST, PUT, PATCH, DELETE) via a form field, header, or JSON body;
+ * the submitted value is compared against the cookie. Safe methods (GET, HEAD,
+ * OPTIONS) are not validated.
+ *
+ * The cookie is HttpOnly + SameSite=Strict, and is marked Secure on HTTPS
+ * requests. Note this is double-submit, not a server-side synchronizer token:
+ * it relies on the SameSite/Secure attributes (and HTTPS) to keep the cookie
+ * out of an attacker's reach rather than on a per-session server secret.
  */
 class CsrfMiddleware implements MiddlewareInterface
 {
@@ -56,7 +63,13 @@ class CsrfMiddleware implements MiddlewareInterface
 
         // Set the token cookie so it persists across requests
         if ($request->getCookie($this->cookieName) === null) {
-            $response->setHeader('Set-Cookie', "{$this->cookieName}={$token}; Path=/; SameSite=Strict; HttpOnly");
+            $response->addCookie(new Cookie(
+                name: $this->cookieName,
+                value: $token,
+                secure: $request->isSecure(),
+                httpOnly: true,
+                sameSite: 'Strict',
+            ));
         }
 
         return $response;

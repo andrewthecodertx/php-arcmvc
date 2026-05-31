@@ -130,8 +130,32 @@ class CorsMiddlewareTest extends TestCase
         $next = fn (Request $req): Response => new Response('OK');
 
         $response = $middleware->handle($this->createRequest('GET', 'https://app.com'), $next);
-        // Preflight gets 'false', but normal requests don't get this header unless credentials are enabled
+        // Normal requests don't get this header unless credentials are enabled
         $this->assertArrayNotHasKey('Access-Control-Allow-Credentials', $response->getHeaders());
+    }
+
+    public function testSpecificOriginAddsVaryHeader(): void
+    {
+        $middleware = new CorsMiddleware(allowedOrigins: ['https://app.com']);
+        $next = fn (Request $req): Response => new Response('OK');
+
+        $response = $middleware->handle($this->createRequest('GET', 'https://app.com'), $next);
+        $this->assertSame('Origin', $response->getHeaders()['Vary'] ?? null);
+    }
+
+    public function testWildcardOriginDoesNotAddVaryHeader(): void
+    {
+        $middleware = new CorsMiddleware(allowedOrigins: '*');
+        $next = fn (Request $req): Response => new Response('OK');
+
+        $response = $middleware->handle($this->createRequest('GET', 'https://anything.com'), $next);
+        $this->assertArrayNotHasKey('Vary', $response->getHeaders());
+    }
+
+    public function testWildcardWithCredentialsThrows(): void
+    {
+        $this->expectException(\InvalidArgumentException::class);
+        new CorsMiddleware(allowedOrigins: '*', allowCredentials: true);
     }
 
     // --- Normal responses ---
