@@ -7,6 +7,7 @@ namespace Tests\Database;
 use PHPUnit\Framework\TestCase;
 use Arc\Database\Model;
 use Arc\Database\Connection;
+use Arc\Database\QueryBuilder;
 
 class TestModel extends Model
 {
@@ -48,25 +49,19 @@ class ModelTest extends TestCase
             'driver' => 'sqlite',
             'database' => ':memory:',
         ]);
-        $conn->statement('CREATE TABLE test_items (id INTEGER PRIMARY KEY, name TEXT, email TEXT)');
+        $conn->statement('CREATE TABLE test_items (id INTEGER PRIMARY KEY, name TEXT, email TEXT, active INTEGER DEFAULT 1, price REAL, category TEXT)');
         return $conn;
     }
 
-    /**
-     * Identifier validation should throw before any DB query is attempted.
-     * Use a mock connection that would blow up if actually called.
-     */
     private function createMockConnection(): Connection
     {
-        // Use SQLite :memory: but don't create any tables.
-        // We just need the Connection object; validation should fail before queries.
         return Connection::make([
             'driver' => 'sqlite',
             'database' => ':memory:',
         ]);
     }
 
-    // --- SQL Injection Prevention Tests (no DB needed, validation throws first) ---
+    // --- SQL Injection Prevention Tests ---
 
     public function testWhereRejectsInvalidColumnName(): void
     {
@@ -126,7 +121,6 @@ class ModelTest extends TestCase
 
         $model = new class extends Model {
             protected string $table = 'items';
-            // Empty fillable means all data passes through filterFillable
             protected array $fillable = [];
         };
         $model::setConnection($this->createMockConnection());
@@ -147,7 +141,7 @@ class ModelTest extends TestCase
         $model::update(1, ['bad col' => 'evil']);
     }
 
-    // --- Functional tests (require SQLite) ---
+    // --- Functional tests ---
 
     public function testWhereAcceptsValidColumnName(): void
     {
@@ -188,14 +182,33 @@ class ModelTest extends TestCase
         $this->assertSame('Charlie', $result['name']);
     }
 
-    public function testValidIdentifierAcceptsStandardNames(): void
+    public function testFindReturnsNullWhenNotFound(): void
     {
         $this->skipWithoutSqlite();
         TestModel::setConnection($this->createConnection());
-        TestModel::create(['name' => 'Test', 'email' => 'test@test.com']);
 
-        $results = TestModel::where('name', 'Test');
-        $this->assertCount(1, $results);
+        $result = TestModel::find(999);
+        $this->assertNull($result);
+    }
+
+    public function testFindOrFailReturnsRowWhenFound(): void
+    {
+        $this->skipWithoutSqlite();
+        TestModel::setConnection($this->createConnection());
+
+        TestModel::create(['name' => 'Dana', 'email' => 'dana@test.com']);
+        $result = TestModel::findOrFail(1);
+
+        $this->assertSame('Dana', $result['name']);
+    }
+
+    public function testFindOrFailThrowsWhenNotFound(): void
+    {
+        $this->skipWithoutSqlite();
+        TestModel::setConnection($this->createConnection());
+
+        $this->expectException(\RuntimeException::class);
+        TestModel::findOrFail(999);
     }
 
     public function testAllAppliesLimitAndOffset(): void
@@ -225,26 +238,61 @@ class ModelTest extends TestCase
         $this->assertSame('Renamed', $row['name']);
     }
 
-    public function testUpdateHandlesFillableColumnNamedLikePrimaryKey(): void
+    public function testQueryReturnsBuilderForChaining(): void
+    {
+        $this->skipWithoutSqlite();
+        TestModel::setConnection($this->createConnection());
+
+        TestModel::create(['name' => 'Alice', 'email' => 'alice@test.com']);
+        TestModel::create(['name' => 'Bob', 'email' => 'bob@test.com']);
+
+        $results = TestModel::query()->where('name', 'Alice')->get();
+        $this->assertCount(1, $results);
+        $this->assertSame('Alice', $results[0]['name']);
+    }
+
+    public function testAggregates(): void
     {
         $this->skipWithoutSqlite();
 
-        // A model whose fillable set includes a column named after the primary
-        // key must not collide with the WHERE-clause placeholder.
-        $conn = Connection::make(['driver' => 'sqlite', 'database' => ':memory:']);
-        $conn->statement('CREATE TABLE widgets (id INTEGER PRIMARY KEY, name TEXT)');
+        $conn = $this->createConnection();
+        $conn->statement("INSERT INTO test_items (name, email, price) VALUES ('A', 'a@t.com', 10.0)");
+        $conn->statement("INSERT INTO test_items (name, email, price) VALUES ('B', 'b@t.com', 20.0)");
+        $conn->statement("INSERT INTO test_items (name, email, price) VALUES ('C', 'c@t.com', 30.0)");
 
         $model = new class extends Model {
-            protected string $table = 'widgets';
+            protected string $table = 'test_items';
             protected string $primaryKey = 'id';
-            protected array $fillable = ['name'];
+            protected array $fillable = ['name', 'email', 'price'];
         };
         $model::setConnection($conn);
 
-        $id = $model::create(['name' => 'first']);
-        $affected = $model::update($id, ['name' => 'second']);
+        $this->assertSame(3, $model::count());
+        $this->assertEqualsWithDelta(60.0, $model::sum('price'), 0.001);
+        $this->assertEqualsWithDelta(20.0, $model::avg('price'), 0.001);
+        $this->assertEqualsWithDelta(10.0, $model::min('price'), 0.001);
+        $this->assertEqualsWithDelta(30.0, $model::max('price'), 0.001);
+    }
 
-        $this->assertSame(1, $affected);
-        $this->assertSame('second', $model::find($id)['name']);
+    public function testExistsReturnsCorrectBoolean(): void
+    {
+        $this->skipWithoutSqlite();
+        TestModel::setConnection($this->createConnection());
+
+        $this->assertFalse(TestModel::exists());
+
+        TestModel::create(['name' => 'Eve', 'email' => 'eve@test.com']);
+        $this->assertTrue(TestModel::exists());
+    }
+
+    public function testQuerySqlForRawQueries(): void
+    {
+        $this->skipWithoutSqlite();
+        TestModel::setConnection($this->createConnection());
+        TestModel::create(['name' => 'Francis', 'email' => 'fran@test.com']);
+
+        $rows = TestModel::querySql('SELECT * FROM test_items WHERE name LIKE ?', ['%anci%']);
+        $this->assertCount(1, $rows);
+        $this->assertSame('Francis', $rows[0]['name']);
     }
 }

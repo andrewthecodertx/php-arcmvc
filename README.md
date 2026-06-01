@@ -200,6 +200,56 @@ new RateLimitMiddleware(
 
 The default in-memory store is per-process; for multi-process or distributed deployments, implement `RateLimitStoreInterface` with Redis or a database backend.
 
+## Query Builder
+
+`Arc\Database\QueryBuilder` provides a fluent interface for building SQL queries. All identifiers are validated against SQL injection.
+
+```php
+use Arc\Database\QueryBuilder;
+
+$builder = new QueryBuilder($connection, 'users');
+
+// SELECT with WHERE, ORDER BY, LIMIT
+$users = $builder->where('active', 1)
+    ->orderBy('name')
+    ->limit(10)
+    ->get();
+
+// Operators: =, !=, <>, <, >, <=, >=, LIKE, NOT LIKE
+$builders = $builder->where('price', '>', 100)->get();
+
+// NULL checks
+$builder->whereNull('deleted_at');
+$builder->whereNotNull('email');
+
+// IN / NOT IN
+$builder->whereIn('role', ['admin', 'editor']);
+$builder->whereNotIn('status', ['banned', 'suspended']);
+
+// First row only (returns null if not found)
+$user = $builder->where('id', 1)->first();
+
+// Aggregates
+$builder->count();
+$builder->exists();
+$builder->sum('price');
+$builder->avg('price');
+$builder->min('price');
+$builder->max('price');
+
+// INSERT
+$id = $builder->insert(['name' => 'Arc', 'email' => 'arc@example.com']);
+
+// UPDATE with WHERE
+$builder->where('id', 1)->update(['name' => 'Updated']);
+
+// DELETE with WHERE
+$builder->where('id', 1)->delete();
+
+// Select specific columns
+$builder->select(['name', 'email'])->get();
+```
+
 ## Database and Models
 
 Configure the database connection in `config/database.php`, then extend the Model:
@@ -219,12 +269,27 @@ Available methods:
 
 ```php
 User::all(limit: 50, offset: 0);               // paginated retrieval
-User::find($id);                                 // single record
+User::find($id);                                 // single record or null
+User::findOrFail($id);                           // single record or throws
 User::where('email', 'user@example.com');        // conditional query
+User::where('age', '>', 18);                     // with operator
 User::create(['name' => 'Arc', 'email' => '...']);
 User::update($id, ['name' => 'Updated']);
 User::delete($id);
 User::count();                                   // total count
+User::exists();                                  // any rows exist
+User::sum('age');                                // aggregate
+User::avg('age');
+User::min('age');
+User::max('age');
+```
+
+Fluent queries via `query()`:
+
+```php
+User::query()->where('active', 1)->orderBy('name')->limit(10)->get();
+User::query()->whereNull('email')->count();
+User::query()->whereIn('role', ['admin', 'editor'])->get();
 ```
 
 Column names in `where()`, `create()`, and `update()` are validated against a strict regex (`/^[a-zA-Z_][a-zA-Z0-9_]*$/`) to prevent SQL injection. Invalid identifiers throw `InvalidArgumentException`.

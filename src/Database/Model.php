@@ -8,11 +8,7 @@ namespace Arc\Database;
  * Base model class for Active Record-style database operations.
  *
  * Subclasses set $table, $primaryKey, and $fillable to configure behavior.
- * All methods that interpolate identifiers (table/column names) validate
- * against `/^[a-zA-Z_][a-zA-Z0-9_]*$/` to prevent SQL injection.
- *
- * @throws \InvalidArgumentException if an identifier contains invalid characters
- * @throws \RuntimeException if no database connection is configured
+ * Static convenience methods delegate to QueryBuilder for all queries.
  */
 class Model
 {
@@ -20,28 +16,6 @@ class Model
     protected string $primaryKey = 'id';
     protected array $fillable = [];
     private static ?Connection $connection = null;
-
-    /**
-     * Validate that an identifier (table name, column name) contains only
-     * safe characters to prevent SQL injection via string interpolation.
-     */
-    private static function isValidIdentifier(string $identifier): bool
-    {
-        return preg_match('/^[a-zA-Z_][a-zA-Z0-9_]*$/', $identifier) === 1;
-    }
-
-    /**
-     * Assert that an identifier is valid, throwing if it is not.
-     * @throws \InvalidArgumentException
-     */
-    private static function assertValidIdentifier(string $identifier, string $context): void
-    {
-        if (!self::isValidIdentifier($identifier)) {
-            throw new \InvalidArgumentException(
-                "Invalid SQL identifier in {$context}: {$identifier}"
-            );
-        }
-    }
 
     /** Set the database connection for all model operations. */
     public static function setConnection(Connection $connection): void
@@ -56,30 +30,27 @@ class Model
     public static function getConnection(): Connection
     {
         if (static::$connection === null) {
-            throw new \RuntimeException('No database connection set. Call Model::setConnection() or register via Application.');
+            throw new \RuntimeException('No database connection set. Call Model::setConnection() first.');
         }
         return static::$connection;
     }
 
     /**
+     * Create a new QueryBuilder for this model's table.
+     */
+    public static function query(): QueryBuilder
+    {
+        $instance = new static();
+        QueryBuilder::assertValidIdentifier($instance->table, 'table name');
+        return new QueryBuilder(static::getConnection(), $instance->table);
+    }
+
+    /**
      * Retrieve rows with pagination.
-     * Default limit is 1000 to prevent memory exhaustion on large tables.
      */
     public static function all(int $limit = 1000, int $offset = 0): array
     {
-        $instance = new static();
-        self::assertValidIdentifier($instance->table, 'table name');
-
-        // LIMIT/OFFSET are inlined rather than bound: with native prepares
-        // (ATTR_EMULATE_PREPARES => false) MySQL rejects string-bound integers
-        // in LIMIT clauses. These values are int-typed parameters, so inlining
-        // them is injection-safe.
-        $limit = max(0, $limit);
-        $offset = max(0, $offset);
-
-        return static::getConnection()->select(
-            "SELECT * FROM `{$instance->table}` LIMIT {$limit} OFFSET {$offset}",
-        );
+        return static::query()->limit($limit)->offset($offset)->get();
     }
 
     /**
@@ -89,82 +60,65 @@ class Model
     public static function find(int|string $id): ?array
     {
         $instance = new static();
-        self::assertValidIdentifier($instance->table, 'table name');
-        self::assertValidIdentifier($instance->primaryKey, 'primary key');
-        return static::getConnection()->selectOne(
-            "SELECT * FROM `{$instance->table}` WHERE `{$instance->primaryKey}` = :id LIMIT 1",
-            ['id' => $id],
-        );
+        QueryBuilder::assertValidIdentifier($instance->primaryKey, 'primary key');
+
+        return static::query()->where($instance->primaryKey, $id)->first();
+    }
+
+    /**
+     * Find a single row by primary key or throw.
+     * @throws \RuntimeException if the row is not found
+     */
+    public static function findOrFail(int|string $id): array
+    {
+        $result = static::find($id);
+
+        if ($result === null) {
+            $instance = new static();
+            throw new \RuntimeException("No {$instance->table} found with {$instance->primaryKey} = {$id}");
+        }
+
+        return $result;
     }
 
     /**
      * Find rows matching a column value.
-     * @throws \InvalidArgumentException if $column contains invalid characters
      */
-    public static function where(string $column, mixed $value): array
+    public static function where(string $column, mixed $operatorOrValue, mixed $value = null): array
     {
-        self::assertValidIdentifier($column, 'column name');
-        $instance = new static();
-        self::assertValidIdentifier($instance->table, 'table name');
-        return static::getConnection()->select(
-            "SELECT * FROM `{$instance->table}` WHERE `{$column}` = :value",
-            ['value' => $value],
-        );
+        if ($value === null) {
+            return static::query()->where($column, $operatorOrValue)->get();
+        }
+
+        return static::query()->where($column, $operatorOrValue, $value)->get();
     }
 
     /**
      * Insert a new row. Only fillable attributes are stored.
-     * @throws \InvalidArgumentException if column names contain invalid characters
      * @throws \RuntimeException if no fillable attributes are provided
      */
     public static function create(array $data): int
     {
         $instance = new static();
-        self::assertValidIdentifier($instance->table, 'table name');
         $data = $instance->filterFillable($data);
 
         if (empty($data)) {
             throw new \RuntimeException('No fillable attributes provided.');
         }
 
-        foreach (array_keys($data) as $col) {
-            self::assertValidIdentifier($col, 'column name');
-        }
-
-        $columns = implode(', ', array_map(fn (string $col) => "`{$col}`", array_keys($data)));
-        $placeholders = implode(', ', array_map(fn (string $col) => ":{$col}", array_keys($data)));
-
-        return static::getConnection()->insert(
-            "INSERT INTO `{$instance->table}` ({$columns}) VALUES ({$placeholders})",
-            $data,
-        );
+        return static::query()->insert($data);
     }
 
     /**
      * Update rows by primary key. Only fillable attributes are stored.
-     * @throws \InvalidArgumentException if column names contain invalid characters
      */
     public static function update(int|string $id, array $data): int
     {
         $instance = new static();
-        self::assertValidIdentifier($instance->table, 'table name');
-        self::assertValidIdentifier($instance->primaryKey, 'primary key');
+        QueryBuilder::assertValidIdentifier($instance->primaryKey, 'primary key');
         $data = $instance->filterFillable($data);
 
-        foreach (array_keys($data) as $col) {
-            self::assertValidIdentifier($col, 'column name');
-        }
-
-        $sets = implode(', ', array_map(fn (string $col) => "`{$col}` = :{$col}", array_keys($data)));
-
-        // Use a reserved placeholder for the WHERE clause so it never collides
-        // with a fillable column literally named after the primary key.
-        $data['__pk'] = $id;
-
-        return static::getConnection()->update(
-            "UPDATE `{$instance->table}` SET {$sets} WHERE `{$instance->primaryKey}` = :__pk",
-            $data,
-        );
+        return static::query()->where($instance->primaryKey, $id)->update($data);
     }
 
     /**
@@ -174,37 +128,64 @@ class Model
     public static function delete(int|string $id): int
     {
         $instance = new static();
-        self::assertValidIdentifier($instance->table, 'table name');
-        self::assertValidIdentifier($instance->primaryKey, 'primary key');
-        return static::getConnection()->delete(
-            "DELETE FROM `{$instance->table}` WHERE `{$instance->primaryKey}` = :id",
-            ['id' => $id],
-        );
+        QueryBuilder::assertValidIdentifier($instance->primaryKey, 'primary key');
+
+        return static::query()->where($instance->primaryKey, $id)->delete();
     }
 
     /**
      * Count rows, optionally for a specific column.
-     * @param string $column Column to count (default '*' for all rows)
-     * @throws \InvalidArgumentException if $column is not '*' and contains invalid characters
      */
     public static function count(string $column = '*'): int
     {
-        $instance = new static();
-        self::assertValidIdentifier($instance->table, 'table name');
-        if ($column !== '*') {
-            self::assertValidIdentifier($column, 'column name');
-        }
-        $result = static::getConnection()->selectOne(
-            "SELECT COUNT({$column}) as count FROM `{$instance->table}`",
-        );
-        return (int) ($result['count'] ?? 0);
+        return static::query()->count($column);
+    }
+
+    /**
+     * Check if any rows exist matching the current query.
+     */
+    public static function exists(): bool
+    {
+        return static::query()->exists();
+    }
+
+    /**
+     * Get the sum of a column.
+     */
+    public static function sum(string $column): int|float|null
+    {
+        return static::query()->sum($column);
+    }
+
+    /**
+     * Get the average of a column.
+     */
+    public static function avg(string $column): int|float|null
+    {
+        return static::query()->avg($column);
+    }
+
+    /**
+     * Get the minimum value of a column.
+     */
+    public static function min(string $column): int|float|string|null
+    {
+        return static::query()->min($column);
+    }
+
+    /**
+     * Get the maximum value of a column.
+     */
+    public static function max(string $column): int|float|string|null
+    {
+        return static::query()->max($column);
     }
 
     /**
      * Execute a raw SQL query with parameter bindings.
      * Use with caution: no identifier validation is performed.
      */
-    public static function query(string $sql, array $bindings = []): array
+    public static function querySql(string $sql, array $bindings = []): array
     {
         return static::getConnection()->select($sql, $bindings);
     }

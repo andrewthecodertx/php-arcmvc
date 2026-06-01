@@ -6,6 +6,21 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added
+- `QueryBuilder` class for fluent, parameterized SQL query construction (SELECT, INSERT, UPDATE, DELETE)
+- Query builder: `where()`, `whereNull()`, `whereNotNull()`, `whereIn()`, `whereNotIn()`, `orderBy()`, `limit()`, `offset()`, `select()`
+- Query builder aggregates: `count()`, `exists()`, `sum()`, `avg()`, `min()`, `max()`
+- Query builder terminals: `get()`, `first()`, `insert()`, `update()`, `delete()`
+- `Model::query()` returns a `QueryBuilder` instance for fluent chaining
+- `Model::findOrFail($id)` throws `RuntimeException` when record not found
+- `Model::exists()`, `Model::sum()`, `Model::avg()`, `Model::min()`, `Model::max()` aggregate methods
+- `Model::where()` now supports 3-arg form: `where('age', '>', 18)`
+- All SQL identifiers validated via `QueryBuilder::assertValidIdentifier()`
+
+### Changed
+- `Model` refactored to delegate all queries to `QueryBuilder` internally
+- `Model::querySql()` replaces `Model::query()` for raw SQL queries (avoids name collision with `Model::query()` builder)
+
 ### Security
 - **Critical**: Fixed XSS double-encoding in `Template::yield()` and `section()`. Content and named sections are now raw by default; use `e()` to escape user data
 - **Critical**: Fixed SQL injection via column/table names in `Model`. All identifiers validated against `/^[a-zA-Z_][a-zA-Z0-9_]*$/`
